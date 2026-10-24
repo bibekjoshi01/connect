@@ -66,6 +66,7 @@ connect/
 │   └── README.md
 ├── docs/
 │   ├── architecture/
+│   │   ├── deployment.md
 │   │   └── overview.md
 │   ├── decisions/
 │   │   └── 0001-stage-0-scope.md
@@ -113,6 +114,7 @@ connect/
 │       │   └── httpserver/
 │       │       ├── server.go
 │       │       └── server_test.go
+│       ├── README.md
 │       └── go.mod
 ├── .clang-format
 ├── .editorconfig

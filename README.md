@@ -6,6 +6,31 @@ liveness endpoint, a portable C++20 library build, and local infrastructure.
 It does not implement accounts, authentication, calling, audio, NAT traversal or
 E2EE. No WebRTC engine is used. Human review is required before Stage 1.
 
+## App versus backend
+
+These are independent projects in one repository, with separate build artifacts
+and release lifecycles:
+
+- **Android app:** [`apps/mobile/`](apps/mobile/README.md). Flutter UI and Kotlin
+  Android host; installed on the user's phone as an APK (later distributed through
+  Google Play using a signed app bundle). Entry point: `lib/main.dart`.
+- **Backend service:** [`services/api/`](services/api/README.md). Go executable
+  running on a server; future account and signaling control plane. Entry point:
+  `cmd/api/main.go`. It currently exposes process liveness only.
+- **Native app library:** `engine/rtc/`. C++ code intended to be packaged inside
+  the Android app in a later stage; it is not another backend service.
+- **Server infrastructure:** `infra/`. Local PostgreSQL, optional Redis and coturn
+  fixtures; production deployment configuration is not implemented.
+- **Shared definitions:** `contracts/`. Versioned API/protocol definitions shared
+  by app and backend development; this directory is not deployed as a service.
+
+The app can be checked without starting the backend. The backend can be built and
+tested without Flutter or the RTC engine. App and server secrets/configuration
+must remain separate. A shared repository keeps coordinated contract changes
+reviewable; it does not require deploying everything together.
+
+See [deployment boundaries and proposed release flow](docs/architecture/deployment.md).
+
 ## Repository
 
 ```text
