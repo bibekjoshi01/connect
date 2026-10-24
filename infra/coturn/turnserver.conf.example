@@ -1,0 +1,25 @@
+# Rendered by make env to .build/coturn/turnserver.conf.
+# LOCAL CONTAINER TESTS ONLY. Host ports are published only on 127.0.0.1.
+listening-port=3478
+min-port=49160
+max-port=49169
+realm=connect.local.test
+server-name=connect.local.test
+fingerprint
+lt-cred-mech
+user=local-test:@TURN_TEST_PASSWORD@
+user-quota=4
+total-quota=8
+max-bps=128000
+no-cli
+no-tls
+no-dtls
+no-tcp-relay
+no-multicast-peers
+no-loopback-peers
+no-software-attribute
+log-file=stdout
+simple-log
+no-stdout-log
+# No external-ip: container-local allocation tests only.
+# Default peer restrictions remain enabled. No public relay deployment is implied.

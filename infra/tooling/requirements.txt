@@ -1,0 +1,2 @@
+# Development formatter only. No production Python runtime dependency.
+clang-format==21.1.8

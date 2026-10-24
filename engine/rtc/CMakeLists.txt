@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 3.22)
+project(connect_rtc VERSION 0.1.0 LANGUAGES CXX)
+
+include(CTest)
+add_library(connect_rtc STATIC src/build_info.cpp)
+target_include_directories(connect_rtc PUBLIC include)
+target_compile_features(connect_rtc PUBLIC cxx_std_20)
+set_target_properties(connect_rtc PROPERTIES CXX_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+if(MSVC)
+  target_compile_options(connect_rtc PRIVATE /W4 /WX)
+else()
+  target_compile_options(connect_rtc PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+# Host smoke tests only; cross-compiled tests require an Android runner later.
+if(BUILD_TESTING AND NOT ANDROID)
+  add_executable(rtc_build_smoke tests/build_smoke.cpp)
+  target_link_libraries(rtc_build_smoke PRIVATE connect_rtc)
+  add_test(NAME rtc_build_smoke COMMAND rtc_build_smoke)
+endif()

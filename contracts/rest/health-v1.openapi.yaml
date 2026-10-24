@@ -1,0 +1,25 @@
+openapi: 3.1.0
+info:
+  title: Connect operational liveness
+  version: 1.0.0
+paths:
+  /healthz:
+    get:
+      operationId: getLiveness
+      summary: Process is serving HTTP; does not assert database or call readiness
+      responses:
+        '200':
+          description: Process alive
+          headers:
+            Cache-Control:
+              schema:
+                const: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    const: ok

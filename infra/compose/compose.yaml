@@ -1,0 +1,48 @@
+name: connect-dev
+
+services:
+  postgres:
+    image: postgres:18.0-alpine@sha256:48c8ad3a7284b82be4482a52076d47d879fd6fb084a1cbfccbd551f9331b0e40
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Run make env}
+      POSTGRES_USER: ${POSTGRES_USER:?Run make env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run make env}
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    shm_size: 128mb
+
+  redis:
+    image: redis:8.2.2-alpine@sha256:59b6e694653476de2c992937ebe1c64182af4728e54bb49e9b7a6c26614d8933
+    profiles: [cache]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run make env}
+    # Ephemeral coordination only. No persistence or production availability claim.
+    command: ['sh', '-ec', 'exec redis-server --save "" --appendonly no --requirepass "$$REDIS_PASSWORD"']
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -qx PONG']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  coturn:
+    image: coturn/coturn:4.7.0@sha256:a00afb5b4890de4df22bbe70379c6b316685dffee297d53cac1271dcb91fab93
+    profiles: [turn]
+    command: ['-c', '/etc/coturn/turnserver.conf']
+    ports:
+      - '127.0.0.1:3478:3478/udp'
+      - '127.0.0.1:3478:3478/tcp'
+      - '127.0.0.1:49160-49169:49160-49169/udp'
+    volumes:
+      - ../../.build/coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+volumes:
+  postgres-data:
