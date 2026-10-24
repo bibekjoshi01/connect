@@ -1,10 +1,11 @@
 # Connect
 
-Android-first, privacy-first app-to-app voice project. **Stage 0 only.** This
-repository contains a launchable Flutter development screen, a Go process
-liveness endpoint, a portable C++20 library build, and local infrastructure.
+Android-first, privacy-first app-to-app voice project. **Stage 1 backend
+foundation.** This repository contains a Flutter development screen, a Go API
+with PostgreSQL readiness and migrations, a portable C++20 library build, and
+local infrastructure.
 It does not implement accounts, authentication, calling, audio, NAT traversal or
-E2EE. No WebRTC engine is used. Human review is required before Stage 1.
+E2EE. No WebRTC engine is used. Human review is required before Stage 2.
 
 ## App versus backend
 
@@ -16,7 +17,8 @@ and release lifecycles:
   Google Play using a signed app bundle). Entry point: `lib/main.dart`.
 - **Backend service:** [`services/api/`](services/api/README.md). Go executable
   running on a server; future account and signaling control plane. Entry point:
-  `cmd/api/main.go`. It currently exposes process liveness only.
+  `cmd/api/main.go`. It currently exposes liveness, database/schema readiness,
+  and private operational metrics. Migrations use `cmd/migrate/main.go`.
 - **Native app library:** `engine/rtc/`. C++ code intended to be packaged inside
   the Android app in a later stage; it is not another backend service.
 - **Server infrastructure:** `infra/`. Local PostgreSQL, optional Redis and coturn
@@ -48,9 +50,10 @@ connect/
 │   ├── tests/build_smoke.cpp
 │   └── CMakeLists.txt
 ├── services/api/
-│   ├── cmd/api/main.go
-│   ├── internal/config/         Validated listener configuration and tests
-│   ├── internal/httpserver/     Liveness HTTP transport and tests
+│   ├── cmd/                     API and explicit migration executables
+│   ├── internal/                Config, database, HTTP and bounded metrics
+│   ├── migrations/              Embedded transactional SQL migrations
+│   ├── tests/integration/       Isolated real-PostgreSQL tests
 │   └── go.mod
 ├── contracts/rest/health-v1.openapi.yaml
 ├── infra/
@@ -73,7 +76,7 @@ connect/
 
 Full source inventory: [repository-tree.txt](docs/development/repository-tree.txt).
 Build artifacts, SDK caches, local credentials and database volumes are excluded.
-Directories for future domains, iOS, migrations, signaling and media are added only
+Directories for future domains, iOS, signaling and media are added only
 when their stage has real content.
 
 ## Tooling and setup
@@ -111,9 +114,12 @@ secrets. If you copy it manually, replace every password; TURN's local password
 must have at least 32 lowercase hex characters. Keep `.env` in simple `KEY=value`
 format (no shell expansions or quotes). Local files are not production config.
 
-The API currently reads only `API_LISTEN_ADDR` from its **process environment**;
-it does not automatically load `.env`. Default is `127.0.0.1:8080`. The `.env`
-file configures Compose. Do not put production secrets in the mobile app.
+The API executable reads `DATABASE_URL`, `API_LISTEN_ADDR`, `APP_ENV` and bounded
+database settings from its **process environment**. Local `make api-run` and
+`make api-migrate` load `.env` and derive the local database URL without printing
+it. The default API address is `127.0.0.1:8080`; development PostgreSQL uses host
+port **55432** to avoid common local database conflicts. The executable itself
+does not load `.env`. Do not put server credentials in the mobile app.
 
 ## Build and test
 
@@ -122,10 +128,20 @@ All commands below run from the repository root:
 ```bash
 # Go: formatting, vet, race tests and executable
 make api-lint api-test api-build
+make env infra-up
+make api-migrate               # Explicitly apply embedded migrations
+make api-migrate ARGS=status
 make api-run
 # In another terminal:
 curl --fail http://127.0.0.1:8080/healthz
 # {"status":"ok"}; Ctrl-C stops the API gracefully.
+curl --fail http://127.0.0.1:8080/readyz
+# {"status":"ready"}; returns 503 when DB/schema is unavailable.
+curl --fail http://127.0.0.1:8080/metrics
+
+# Fresh migrations, concurrency, rollback protection, timeouts and recovery:
+make api-integration
+# Uses a disposable DB on 15432; never mounts the development data volume.
 ```
 
 ```bash
@@ -185,14 +201,17 @@ make infra-check-turn         # STUN + 4/4 relayed packets + bad-password reject
 make infra-down               # Stop all profiles; preserve PostgreSQL volume
 ```
 
-All host ports bind to **127.0.0.1**: PostgreSQL 5432, Redis 6379, coturn 3478
+All host ports bind to **127.0.0.1**: PostgreSQL 55432 (configurable with
+`POSTGRES_PORT`), Redis 6379, coturn 3478
 TCP/UDP and relay UDP 49160–49169. PostgreSQL data persists in the project-named
 Docker volume; Redis is intentionally ephemeral. Password changes do not change
 an already initialized PostgreSQL user's password: alter it explicitly in the
 database or reset only disposable data. No destructive reset target is provided.
 
-The API does not connect to PostgreSQL or Redis yet. `/healthz` proves process
-liveness only. coturn relay validation is inside its container namespace; this
+The API connects to PostgreSQL; Redis remains unintegrated. `/healthz` proves
+process liveness only; `/readyz` checks connectivity and the expected migration
+version within `DB_READY_TIMEOUT`. Keep `/metrics` and health probes private
+when ingress is introduced. coturn relay validation is inside its container namespace; this
 configuration cannot prove physical-device connectivity, external address mapping
 or real NAT traversal. Read [local versus public TURN](infra/coturn/README.md).
 Development HTTP and TURN fixtures do not provide production TLS ingress.
@@ -204,15 +223,14 @@ cross-compilation and local infrastructure in separate jobs. Actions are pinned
 to commits and have read-only repository permissions. Workflows have not run on
 GitHub until the repository is pushed; there is no configured remote.
 
-See [actual local results and limitations](docs/development/stage-0-results.md).
-This machine passed host Go/native/Flutter and local service checks; the local
-APK attempt is blocked by the missing Android SDK. No device audio, calling or
-E2EE behavior has been tested or claimed.
+See [Stage 1 setup and results](docs/development/stage-1.md) and the
+[historical Stage 0 validation](docs/development/stage-0-results.md).
+No device audio, calling or E2EE behavior is implemented or claimed.
 
 Review [architecture and rationale](docs/architecture/overview.md),
 [Stage 0 decision](docs/decisions/0001-stage-0-scope.md),
 [security approval gates](docs/security/review-gates.md), and
-[recommended Stage 1 plan](docs/development/stages.md) before proceeding.
+[stage boundaries](docs/development/stages.md) before proceeding.
 The Android package/minimum version and future crypto/identity decisions remain
 pending review. No paid services, external project accounts, remote repository,
 Firebase configuration, deployment or production secrets were provisioned.

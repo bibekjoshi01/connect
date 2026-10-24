@@ -8,7 +8,7 @@ import (
 )
 
 func TestHealthContract(t *testing.T) {
-	srv := httptest.NewServer(New("unused").Handler)
+	srv := httptest.NewServer(New("unused", Options{}).Handler)
 	defer srv.Close()
 	client := srv.Client()
 	for _, tt := range []struct {

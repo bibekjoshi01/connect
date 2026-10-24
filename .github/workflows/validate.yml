@@ -1,4 +1,4 @@
-name: Stage 0 validation
+name: Foundation validation
 
 on:
   push:
@@ -23,8 +23,9 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: '1.26.10'
-          cache: false # No external Go modules or go.sum in Stage 0.
+          cache: false # The Makefile uses project-local Go caches.
       - run: make api-lint api-test api-build
+      - run: make env api-integration
 
   native:
     runs-on: ubuntu-24.04

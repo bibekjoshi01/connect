@@ -1,6 +1,8 @@
 # ADR 0001 — Stage 0 foundation
 
-Status: proposed for human review; bootstrap implemented under the Stage 0 request.
+Status: accepted for the bootstrap following Stage 0 review and authorization to
+begin Stage 1. Release identifiers and security-specific proposals remain separate
+review decisions.
 
 Use the requested monorepo and stack with only real bootstrap components. Generate
 an Android-only Flutter project, compile a portable C++20 library, serve a Go

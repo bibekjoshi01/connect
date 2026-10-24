@@ -8,20 +8,27 @@ export GOMODCACHE := $(CACHE_DIR)/go-mod
 COMPOSE := docker compose --env-file .env -f infra/compose/compose.yaml
 CPP_FILES := $(shell find engine/rtc -type f \( -name '*.cpp' -o -name '*.hpp' \))
 
-.PHONY: help env api-run api-build api-test api-lint native-build native-test native-format native-format-check mobile-deps mobile-check mobile-apk format check infra-config infra-up infra-up-cache infra-up-turn infra-check infra-check-cache infra-check-turn infra-down
+.PHONY: help env api-run api-build api-test api-lint api-migrate api-integration native-build native-test native-format native-format-check mobile-deps mobile-check mobile-apk format check infra-config infra-up infra-up-cache infra-up-turn infra-check infra-check-cache infra-check-turn infra-down
 
 help:
-	@echo 'See README.md for setup. Main targets: env, check, api-run, mobile-apk, infra-up, infra-down.'
+	@echo 'See README.md for setup. Main targets: env, check, api-migrate, api-integration, api-run, mobile-apk, infra-up, infra-down.'
 
 env:
 	python3 infra/scripts/init_env.py
 
 api-run:
-	cd services/api && API_LISTEN_ADDR="$${API_LISTEN_ADDR:-127.0.0.1:8080}" go run ./cmd/api
+	python3 infra/scripts/api_local.py run
+
+api-migrate:
+	python3 infra/scripts/api_local.py migrate $(or $(ARGS),up)
+
+api-integration:
+	python3 infra/scripts/api_local.py integration
 
 api-build:
 	mkdir -p .build/api
 	cd services/api && go build -trimpath -o ../../.build/api/connect-api ./cmd/api
+	cd services/api && go build -trimpath -o ../../.build/api/connect-migrate ./cmd/migrate
 
 api-test:
 	cd services/api && go test -race -count=1 ./...

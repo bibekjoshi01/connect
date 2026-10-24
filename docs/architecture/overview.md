@@ -1,6 +1,7 @@
 # Architecture review — Stage 0
 
-Status: proposed architecture, implemented bootstrap; pending human review.
+Status: Stage 0 reviewed; Stage 1 backend foundation authorized and implemented.
+Security-specific protocol proposals still require their separate approvals.
 The repository was empty. No existing Account & Identity specification was found.
 The supplied project requirements remain authoritative.
 
@@ -17,8 +18,9 @@ The supplied project requirements remain authoritative.
   crypto, and STUN/TURN will be integrated separately after approval.
 - Go: standard-library HTTP process in a modular monolith; no framework required.
   `connect.local/api` is a local module name, not an internet domain dependency.
-- PostgreSQL: future transactional account/device/recovery persistence. No schema,
-  driver, migrations, or database readiness claim exists at Stage 0.
+- PostgreSQL: bounded pgx/database/sql connectivity, explicit Goose migrations,
+  and read-only dependency readiness. The first migration creates only the
+  application namespace. Account/device/recovery tables remain deferred.
 - Redis: optional local Compose profile. Its production use must be justified
   (e.g. bounded ephemeral coordination/rate limiting); it cannot be the source of
   truth for device revocation. Not connected to the API yet.
@@ -40,6 +42,8 @@ encrypted media; the server and relay must never obtain media decryption keys.
 
 Versioned shared contracts live in `contracts/`. Add domain directories and
 protocol contracts only with real implementations. No empty speculative modules.
+See `../decisions/0002-backend-foundation.md` for Stage 1 configuration, timeouts,
+pooling, migration locking, error redaction and operational endpoint boundaries.
 
 ## Identity invariants carried forward
 

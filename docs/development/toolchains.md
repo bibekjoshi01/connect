@@ -8,8 +8,8 @@ https://docs.flutter.dev/install/archive
 
 Go language floor: 1.26.0. The module toolchain directive and CI pin patched Go
 1.26.10. The preinstalled system Go is 1.26.2; validation uses the downloaded
-1.26.10 toolchain in the ignored project cache. The backend currently has no
-external Go dependencies.
+1.26.10 toolchain in the ignored project cache. Stage 1 pins pgx v5.11.0 and Goose
+v3.29.0; transitive versions/checksums are committed in `go.mod` and `go.sum`.
 Check upstream release/security notes before each toolchain update:
 https://go.dev/doc/devel/release
 
@@ -22,8 +22,10 @@ Gradle Plugin 9.1.0, Kotlin plugin 2.4.0, compile/target API 36, minimum API 24,
 NDK 28.2.13676358. Use JDK 21 for Gradle; Java/Kotlin source targets remain 17.
 The generated template disables AGP's built-in Kotlin/new DSL for Flutter
 compatibility; Flutter's Gradle plugin applies the declared Kotlin plugin.
-Review supported SDK/device requirements before changing the minimum version. JDK 25 was found
-locally; a compatible Android toolchain has not been installed by this bootstrap.
+Review supported SDK/device requirements before changing the minimum version.
+The system JDK remains 25; JDK 21 and the Android SDK/NDK/emulator are now installed
+under ignored `.tools/` for local build/preview validation. They are not globally
+installed or added to shell startup files.
 
 Docker Engine plus Compose v2+; Python >=3.10 for local secret generation and
 TURN smoke tests; Git; Bash; curl for the manual HTTP smoke check. Android Studio

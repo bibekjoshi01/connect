@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
-  title: Connect operational liveness
-  version: 1.0.0
+  title: Connect operational endpoints
+  version: 1.1.0
 paths:
   /healthz:
     get:
@@ -23,3 +23,41 @@ paths:
                 properties:
                   status:
                     const: ok
+  /readyz:
+    get:
+      operationId: getReadiness
+      summary: PostgreSQL is reachable and the expected migration version is applied
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    const: ready
+        '503':
+          description: Database unavailable, query timed out, or schema not current
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                additionalProperties: false
+                properties:
+                  status:
+                    const: unavailable
+  /metrics:
+    get:
+      operationId: getOperationalMetrics
+      summary: Fixed operational counters and database pool gauges without user labels
+      responses:
+        '200':
+          description: Prometheus text exposition; keep private
+          content:
+            text/plain:
+              schema:
+                type: string

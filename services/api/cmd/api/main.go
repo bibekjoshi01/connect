@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"connect.local/api/internal/config"
+	"connect.local/api/internal/database"
 	"connect.local/api/internal/httpserver"
+	"connect.local/api/migrations"
 )
 
 func main() {
@@ -29,7 +31,22 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv := httpserver.New(cfg.ListenAddr)
+	db, err := database.Open(cfg)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	startup, cancel := context.WithTimeout(ctx, cfg.DBStartupTimeout)
+	err = database.WaitAvailable(startup, db, cfg.DBConnectTimeout)
+	cancel()
+	if err != nil {
+		return err
+	}
+	srv := httpserver.New(cfg.ListenAddr, httpserver.Options{
+		Ready:         func(ctx context.Context) error { return database.Ready(ctx, db, migrations.LatestVersion) },
+		ReadyTimeout:  cfg.DBReadyTimeout,
+		DatabaseStats: db.Stats,
+	})
 	// The standard HTTP server error logger omits request headers and bodies.
 	srv.ErrorLog = slog.NewLogLogger(logger.Handler(), slog.LevelError)
 	done := make(chan error, 1)

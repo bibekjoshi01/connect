@@ -18,8 +18,6 @@ connect/
 │       │   │   │   │   ├── res/
 │       │   │   │   │   │   ├── drawable/
 │       │   │   │   │   │   │   └── launch_background.xml
-│       │   │   │   │   │   ├── drawable-v21/
-│       │   │   │   │   │   │   └── launch_background.xml
 │       │   │   │   │   │   ├── mipmap-hdpi/
 │       │   │   │   │   │   │   └── ic_launcher.png
 │       │   │   │   │   │   ├── mipmap-mdpi/
@@ -69,10 +67,12 @@ connect/
 │   │   ├── deployment.md
 │   │   └── overview.md
 │   ├── decisions/
-│   │   └── 0001-stage-0-scope.md
+│   │   ├── 0001-stage-0-scope.md
+│   │   └── 0002-backend-foundation.md
 │   ├── development/
 │   │   ├── repository-tree.txt
 │   │   ├── stage-0-results.md
+│   │   ├── stage-1.md
 │   │   ├── stages.md
 │   │   └── toolchains.md
 │   ├── protocols/
@@ -92,11 +92,13 @@ connect/
 │       └── CMakeLists.txt
 ├── infra/
 │   ├── compose/
-│   │   └── compose.yaml
+│   │   ├── compose.yaml
+│   │   └── test.yaml
 │   ├── coturn/
 │   │   ├── README.md
 │   │   └── turnserver.conf.example
 │   ├── scripts/
+│   │   ├── api_local.py
 │   │   ├── check_infra.sh
 │   │   ├── check_turn.py
 │   │   └── init_env.py
@@ -105,17 +107,32 @@ connect/
 ├── services/
 │   └── api/
 │       ├── cmd/
-│       │   └── api/
+│       │   ├── api/
+│       │   │   └── main.go
+│       │   └── migrate/
 │       │       └── main.go
 │       ├── internal/
 │       │   ├── config/
 │       │   │   ├── config.go
-│       │   │   └── config_test.go
-│       │   └── httpserver/
-│       │       ├── server.go
-│       │       └── server_test.go
+│       │   │   ├── config_test.go
+│       │   │   └── database_test.go
+│       │   ├── database/
+│       │   │   └── database.go
+│       │   ├── httpserver/
+│       │   │   ├── readiness_test.go
+│       │   │   ├── server.go
+│       │   │   └── server_test.go
+│       │   └── observability/
+│       │       └── metrics.go
+│       ├── migrations/
+│       │   ├── 00001_create_connect_schema.sql
+│       │   └── migrations.go
+│       ├── tests/
+│       │   └── integration/
+│       │       └── foundation_test.go
 │       ├── README.md
-│       └── go.mod
+│       ├── go.mod
+│       └── go.sum
 ├── .clang-format
 ├── .editorconfig
 ├── .env.example

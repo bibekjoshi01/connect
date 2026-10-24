@@ -15,7 +15,15 @@ func TestLoad(t *testing.T) {
 		{name: "nonnumeric", value: "127.0.0.1:http", invalid: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := Load(func(string) string { return tt.value })
+			cfg, err := Load(func(key string) string {
+				if key == "DATABASE_URL" {
+					return "postgres://connect:local@127.0.0.1/connect?sslmode=disable"
+				}
+				if key == "API_LISTEN_ADDR" {
+					return tt.value
+				}
+				return ""
+			})
 			if (err != nil) != tt.invalid {
 				t.Fatalf("error = %v, want invalid %v", err, tt.invalid)
 			}

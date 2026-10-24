@@ -1,9 +1,13 @@
 # Stage boundaries
 
-Current stage: **0 — implemented foundation, awaiting human review**.
-Do not start Stage 1 until the reviewer approves it.
+Current stage: **1 — backend foundation implemented, awaiting review**.
+Stage 0 was reviewed and committed locally. Do not start Stage 2 before review.
 
-## Recommended Stage 1 increment
+## Stage 1 implementation and review
+
+Backend connectivity, migrations, readiness, metrics and isolated integration
+tests are implemented. See `stage-1.md` for commands and validation results.
+The following list records the authorized scope; Stage 2 remains review-gated.
 
 1. Approve backend configuration conventions and migration runner selection.
 2. Add a pinned PostgreSQL driver, bounded connection pool, connection/startup

@@ -1,7 +1,8 @@
 # Separate app and server deployment
 
-Status: explanation and proposed future deployment flow. Stage 0 builds local
-components; it does not implement or authorize production deployment.
+Status: explanation and proposed future deployment flow. Stage 1 builds local
+components with PostgreSQL readiness/migrations; production deployment remains
+unimplemented and requires later approval.
 
 ## Projects and runtime locations
 
