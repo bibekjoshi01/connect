@@ -1,0 +1,19 @@
+name: connect-api-test
+
+services:
+  postgres:
+    image: postgres:18.0-alpine@sha256:48c8ad3a7284b82be4482a52076d47d879fd6fb084a1cbfccbd551f9331b0e40
+    environment:
+      POSTGRES_DB: connect_stage1_test
+      POSTGRES_USER: ${POSTGRES_USER:?Run make env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run make env}
+    ports:
+      - '127.0.0.1:${TEST_POSTGRES_PORT:-15432}:5432'
+    # Disposable database. No development or production volume is mounted.
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 1s
+      timeout: 3s
+      retries: 30

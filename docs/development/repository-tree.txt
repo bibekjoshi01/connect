@@ -1,0 +1,144 @@
+connect/
+├── .github/
+│   └── workflows/
+│       └── validate.yml
+├── apps/
+│   └── mobile/
+│       ├── android/
+│       │   ├── app/
+│       │   │   ├── src/
+│       │   │   │   ├── debug/
+│       │   │   │   │   └── AndroidManifest.xml
+│       │   │   │   ├── main/
+│       │   │   │   │   ├── kotlin/
+│       │   │   │   │   │   └── dev/
+│       │   │   │   │   │       └── connect/
+│       │   │   │   │   │           └── connect_mobile/
+│       │   │   │   │   │               └── MainActivity.kt
+│       │   │   │   │   ├── res/
+│       │   │   │   │   │   ├── drawable/
+│       │   │   │   │   │   │   └── launch_background.xml
+│       │   │   │   │   │   ├── mipmap-hdpi/
+│       │   │   │   │   │   │   └── ic_launcher.png
+│       │   │   │   │   │   ├── mipmap-mdpi/
+│       │   │   │   │   │   │   └── ic_launcher.png
+│       │   │   │   │   │   ├── mipmap-xhdpi/
+│       │   │   │   │   │   │   └── ic_launcher.png
+│       │   │   │   │   │   ├── mipmap-xxhdpi/
+│       │   │   │   │   │   │   └── ic_launcher.png
+│       │   │   │   │   │   ├── mipmap-xxxhdpi/
+│       │   │   │   │   │   │   └── ic_launcher.png
+│       │   │   │   │   │   ├── values/
+│       │   │   │   │   │   │   └── styles.xml
+│       │   │   │   │   │   └── values-night/
+│       │   │   │   │   │       └── styles.xml
+│       │   │   │   │   └── AndroidManifest.xml
+│       │   │   │   └── profile/
+│       │   │   │       └── AndroidManifest.xml
+│       │   │   └── build.gradle.kts
+│       │   ├── gradle/
+│       │   │   └── wrapper/
+│       │   │       ├── gradle-wrapper.jar
+│       │   │       └── gradle-wrapper.properties
+│       │   ├── .gitignore
+│       │   ├── build.gradle.kts
+│       │   ├── gradle.properties
+│       │   ├── gradlew
+│       │   ├── gradlew.bat
+│       │   └── settings.gradle.kts
+│       ├── lib/
+│       │   ├── app/
+│       │   │   └── connect_app.dart
+│       │   └── main.dart
+│       ├── test/
+│       │   └── app_test.dart
+│       ├── .gitignore
+│       ├── .metadata
+│       ├── README.md
+│       ├── analysis_options.yaml
+│       ├── pubspec.lock
+│       └── pubspec.yaml
+├── contracts/
+│   ├── rest/
+│   │   └── health-v1.openapi.yaml
+│   └── README.md
+├── docs/
+│   ├── architecture/
+│   │   ├── deployment.md
+│   │   └── overview.md
+│   ├── decisions/
+│   │   ├── 0001-stage-0-scope.md
+│   │   └── 0002-backend-foundation.md
+│   ├── development/
+│   │   ├── repository-tree.txt
+│   │   ├── stage-0-results.md
+│   │   ├── stage-1.md
+│   │   ├── stages.md
+│   │   └── toolchains.md
+│   ├── protocols/
+│   │   └── README.md
+│   └── security/
+│       └── review-gates.md
+├── engine/
+│   └── rtc/
+│       ├── include/
+│       │   └── connect/
+│       │       └── rtc/
+│       │           └── build_info.hpp
+│       ├── src/
+│       │   └── build_info.cpp
+│       ├── tests/
+│       │   └── build_smoke.cpp
+│       └── CMakeLists.txt
+├── infra/
+│   ├── compose/
+│   │   ├── compose.yaml
+│   │   └── test.yaml
+│   ├── coturn/
+│   │   ├── README.md
+│   │   └── turnserver.conf.example
+│   ├── scripts/
+│   │   ├── api_local.py
+│   │   ├── check_infra.sh
+│   │   ├── check_turn.py
+│   │   └── init_env.py
+│   └── tooling/
+│       └── requirements.txt
+├── services/
+│   └── api/
+│       ├── cmd/
+│       │   ├── api/
+│       │   │   └── main.go
+│       │   └── migrate/
+│       │       └── main.go
+│       ├── internal/
+│       │   ├── config/
+│       │   │   ├── config.go
+│       │   │   ├── config_test.go
+│       │   │   └── database_test.go
+│       │   ├── database/
+│       │   │   └── database.go
+│       │   ├── httpserver/
+│       │   │   ├── readiness_test.go
+│       │   │   ├── server.go
+│       │   │   └── server_test.go
+│       │   └── observability/
+│       │       └── metrics.go
+│       ├── migrations/
+│       │   ├── 00001_create_connect_schema.sql
+│       │   └── migrations.go
+│       ├── tests/
+│       │   └── integration/
+│       │       └── foundation_test.go
+│       ├── README.md
+│       ├── go.mod
+│       └── go.sum
+├── .clang-format
+├── .editorconfig
+├── .env.example
+├── .flutter-version
+├── .gitattributes
+├── .gitignore
+├── AGENTS.md
+├── Makefile
+└── README.md

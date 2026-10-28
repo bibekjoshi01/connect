@@ -1,5 +1,0 @@
-uvicorn[standard]
-fastapi[standard]
-Jinja2==3.1.6
-pydantic-settings
-python-dotenv==1.1.1

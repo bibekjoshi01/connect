@@ -1,66 +1,23 @@
-# Python
+.DS_Store
+.env
+.env.*
+!.env.example
+.build/
+.cache/
+.tools/
+*.log
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.pyc
-*.log
-
-# Virtual environments
-venv/
-.env
-.venv/
-ENV/
-env/
-*.env
-
-/venv/
-
-# IDEs
-.vscode/
-.idea/
-*.sublime-project
-*.sublime-workspace
-
-# OS
-.DS_Store
-Thumbs.db
-
-# FastAPI static/generated
-*.db
-instance/
-staticfiles/
-
-# Node (if you add tooling)
-node_modules/
-
-# Build artifacts
-dist/
-build/
-
-# Deployment Logs & Sockets
-*.log
-*.pid
-*.sock
-*.db
-*.sqlite3
-*.sqlite
-
-# Gunicorn Logs & Socket
-access_log
-error_log
-gunicorn.sock
-
-# Systemd service files (optional - don't ignore if managing in repo)
-*.service
-
-# Nginx (optional - only ignore if you don’t want to track config)
-*.conf
-
-# Let’s Encrypt SSL Certificates (never push certs)
-/etc/letsencrypt/
-certbot.log
-
-# OS generated files
-.DS_Store
-Thumbs.db
+*.pem
+*.key
+*.keystore
+*.jks
+**/local.properties
+**/key.properties
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/build/
+**/.gradle/
+**/.kotlin/
+**/.idea/
+*.iml
