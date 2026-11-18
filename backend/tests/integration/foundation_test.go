@@ -116,9 +116,11 @@ func TestPostgresFoundation(t *testing.T) {
 	})
 
 	t.Run("rollback protects application objects", func(t *testing.T) {
-		if _, err := provider.Down(ctx); err != nil {
-			t.Fatal(err)
-		} // Empty Stage 2 tables.
+		for version := migrations.LatestVersion; version > 1; version-- {
+			if _, err := provider.Down(ctx); err != nil {
+				t.Fatal(err)
+			}
+		} // Empty Stage 2 schema increments.
 
 		if _, err := db.ExecContext(ctx, "CREATE TABLE connect.qa_guard (id integer)"); err != nil {
 			t.Fatal(err)

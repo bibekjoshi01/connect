@@ -7,11 +7,11 @@ Flutter's stable channel is the recommended baseline for new applications:
 https://docs.flutter.dev/install/archive
 
 Go language floor: 1.26.0. The module toolchain directive and CI pin patched Go
-1.26.10. The preinstalled system Go is 1.26.2; validation uses the downloaded
-1.26.10 toolchain in the ignored project cache. Stage 1 pins pgx v5.11.0 and Goose
+1.26.11. The preinstalled system Go is 1.26.2; validation uses the downloaded
+1.26.11 toolchain in the ignored project cache. Stage 1 pins pgx v5.11.0 and Goose
 v3.29.0; transitive versions/checksums are committed in `go.mod` and `go.sum`.
 Stage 2 additionally pins go-webauthn/webauthn v0.18.2 and its resolved graph;
-backend builds and tests pass under the same Go 1.26.10 toolchain.
+backend builds and tests pass under the same Go 1.26.11 toolchain.
 Check upstream release/security notes before each toolchain update:
 https://go.dev/doc/devel/release
 

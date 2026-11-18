@@ -19,7 +19,7 @@ docs/            Architecture, setup and development guides
 
 ## Requirements
 
-- **Backend:** Go 1.26.10, Python 3.10+, Docker with Compose v2 and Make.
+- **Backend:** Go 1.26.11, Python 3.10+, Docker with Compose v2 and Make.
 - **Mobile:** Flutter 3.47.8, JDK 21, Android SDK and a device or emulator.
 - **Native engine:** C++20 compiler and CMake.
 

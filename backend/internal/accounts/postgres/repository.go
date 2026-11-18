@@ -91,17 +91,71 @@ func (r *Repository) FindDevice(ctx context.Context, digest []byte) (accounts.De
 }
 func ceremony(ctx context.Context, tx *sql.Tx, id, operation string) (accounts.Ceremony, error) {
 	var c accounts.Ceremony
-	var raw []byte
-	err := tx.QueryRowContext(ctx, `SELECT id,operation,COALESCE(username,''),user_handle,COALESCE(device_id::text,''),verifier_session,expires_at
+	var raw, pending []byte
+	err := tx.QueryRowContext(ctx, `SELECT id,operation,COALESCE(username,''),user_handle,COALESCE(device_id::text,''),verifier_session,expires_at,pending_credential
  FROM connect.ceremonies WHERE id=$1 AND operation=$2 AND NOT consumed AND attempts<3 AND expires_at>clock_timestamp() FOR UPDATE`, id, operation).
-		Scan(&c.ID, &c.Operation, &c.Username, &c.UserID, &c.DeviceID, &raw, &c.ExpiresAt)
+		Scan(&c.ID, &c.Operation, &c.Username, &c.UserID, &c.DeviceID, &raw, &c.ExpiresAt, &pending)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, accounts.ErrUnauthorized
 	}
 	if err != nil || json.Unmarshal(raw, &c.Data) != nil {
 		return accounts.Ceremony{}, accounts.ErrUnavailable
 	}
+	if len(pending) > 0 {
+		var credential webauthn.Credential
+		if json.Unmarshal(pending, &credential) != nil {
+			return accounts.Ceremony{}, accounts.ErrUnavailable
+		}
+		c.PendingCredential = &credential
+	}
 	return c, nil
+}
+
+// PrepareRegistration transitions a locked ceremony without creating identity
+// rows. The same slot and failure budget are retained, so admission stays bounded.
+func (r *Repository) PrepareRegistration(ctx context.Context, id string, verify func(accounts.Ceremony) (accounts.PreparedRegistration, error)) (accounts.Options, error) {
+	ctx, cancel := context.WithTimeout(ctx, accounts.OperationTimeout)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	defer tx.Rollback()
+	c, err := ceremony(ctx, tx, id, accounts.Registration)
+	if err != nil {
+		return accounts.Options{}, err
+	}
+	proof, err := verify(c)
+	if errors.Is(err, accounts.ErrUnauthorized) {
+		return accounts.Options{}, failed(ctx, tx, id)
+	}
+	if err != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	data, err := json.Marshal(proof.Data)
+	if err != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	credential, err := json.Marshal(proof.Credential)
+	if err != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE connect.ceremonies SET operation=$2,verifier_session=$3,pending_credential=$4,expires_at=$5
+ WHERE id=$1 AND operation='registration' AND NOT consumed AND attempts<3 AND expires_at>clock_timestamp()`, id, accounts.RegistrationProof, data, credential, proof.Data.Expires)
+	if err != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	if n != 1 {
+		return accounts.Options{}, accounts.ErrUnauthorized
+	}
+	if tx.Commit() != nil {
+		return accounts.Options{}, accounts.ErrUnavailable
+	}
+	return accounts.Options{CeremonyID: id, PublicKey: proof.PublicKey}, nil
 }
 func failed(ctx context.Context, tx *sql.Tx, id string) error {
 	return failedAs(ctx, tx, id, accounts.ErrUnauthorized)
@@ -161,7 +215,7 @@ func (r *Repository) register(ctx context.Context, id string, verify func(accoun
 		return accounts.Session{}, accounts.ErrUnavailable, false
 	}
 	defer tx.Rollback()
-	c, err := ceremony(ctx, tx, id, accounts.Registration)
+	c, err := ceremony(ctx, tx, id, accounts.RegistrationProof)
 	if err != nil {
 		return accounts.Session{}, err, false
 	}

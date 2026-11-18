@@ -6,6 +6,10 @@ Stage 1 was accepted on 2026-10-28. On 2026-11-18 the reviewer approved the
 [Stage 2 backend design](stage-2.md) by directing implementation in response to
 the explicit security-design approval request. Registration, device WebAuthn
 authentication, profile access and revocable sessions are now implemented.
+QA corrections require a standard signed enrollment proof before the first
+session, patch Go to 1.26.11 and add CI vulnerability scanning. The reviewer has
+requested mobile UI/UX work next, with integration afterward; later identity and
+calling implementation remains gated.
 See [implementation and validation](stage-2-results.md) and the
 [manual acceptance checklist](manual-testing.md).
 

@@ -9,8 +9,9 @@ compatibility testing. The approval record and limitations are in [stage-2.md](s
 
 The [versioned contract](../../contracts/rest/accounts-v1.openapi.yaml) defines:
 
-- Registration options and finish: normalize/validate a username, verify standard
-  WebAuthn enrollment, and atomically create an account, active device and session.
+- Registration options, finish and proof: validate a username, verify registration,
+  then require a fresh standard assertion before creating any account/device/session.
+  Finish returns 202/assertion options; proof returns 201/session and device handle.
 - Authentication options and finish: look up a random device handle, verify the
   enrolled credential, consume the ceremony, and rotate the session atomically.
 - `GET /v1/me`: return the authenticated account's ID, username and permanent Call ID.
@@ -30,9 +31,11 @@ to another account's device. Read-only profile access checks PostgreSQL on every
 request. Requests already authorized before revocation commits may be in flight.
 
 Migration 2 creates account, device, ceremony and session tables. Its down
-migration refuses any nonempty identity table. Migration 1 remains unchanged;
-a Stage 1 development database must explicitly run `make api-migrate` to reach
-version 2. API startup never applies migrations automatically.
+migration refuses any nonempty identity table. Migration 3 adds pending proof
+state and revokes earlier sessions. Stop the API, explicitly run
+`make backend-migrate` to reach version 3, then restart it. Existing credentials
+can log in normally. Migrations 1 and 2 remain unchanged, and API startup never
+applies migrations automatically. Downgrading with identity/ceremony data is refused.
 
 ## Authentication configuration and HTTPS
 
@@ -94,8 +97,8 @@ account request bodies and identifiers are not logged. Responses use `no-store`.
 ## Dependency review
 
 `github.com/go-webauthn/webauthn` v0.18.2 and its resolved graph are pinned in
-`backend/go.mod` and `go.sum`. The backend builds under Go 1.26.10 without
-changing the project toolchain. The library verifies standard challenges,
+`backend/go.mod` and `go.sum`. The QA correction updates the pinned toolchain
+to Go 1.26.11 for GO-2026-6859; dependency versions remain unchanged. The library verifies standard challenges,
 signatures, origins, RP IDs, user presence/verification and extension policy;
 Connect restricts registration to ES256 and rejects backup flags and clone
 warnings. Zero signature counters alone are allowed by the standard policy.
@@ -109,7 +112,7 @@ The source review is not a claim of independent cryptographic audit.
 Executed locally on 2026-11-18; the following checks passed:
 
 ```bash
-make api-lint api-test api-build api-integration
+make backend-check backend-integration backend-security
 ```
 
 
@@ -122,13 +125,23 @@ make api-lint api-test api-build api-integration
   distinct login ceremonies rechecked the latest signature counter. Cross-account
   device pointers were rejected, and inactive devices lost access. Capacity,
   cleanup, source/verification limits and database failures were exercised.
+- The public-key-only enrollment regression is covered: registration creates
+  pending assertion options only. No account/device/session exists before proof;
+  an incorrect key/signature, original challenge, wrong operation/origin/RP,
+  missing verification, expiry or exhausted failure budget cannot enroll.
+- Legacy-session upgrade revocation and continued credential login are tested.
 - The built API started with an explicitly trusted temporary TLS certificate,
   became ready, served registration options and shut down cleanly on SIGTERM.
   Lifecycle/transport redaction checks passed.
-- `go mod verify` passed. The account OpenAPI parsed, its six operation IDs were
+- `go mod verify` passed. The account OpenAPI parsed, its seven operation IDs were
   unique, and every local schema reference resolved. Documentation links/code
   fences and local Python-helper syntax checks passed. This was a structural
   contract check, not validation by a full OpenAPI validator.
+
+The pinned govulncheck v1.10.0 scan runs through `make backend-security` and CI.
+It reports no reachable known vulnerabilities under Go 1.26.11. A module-only
+OpenPGP advisory remains in a transitive module, but this code imports/calls no
+OpenPGP package; this result is not a claim that every module is advisory-free.
 
 Flutter/Android checks were not rerun: no mobile source changed, and the previous
 Flutter SDK is missing. There is no new APK or physical-device result. Public
@@ -147,6 +160,8 @@ See [manual-testing.md](manual-testing.md) for the human review checklist.
 
 ## Remaining app work and stage gate
 
+The reviewer requested mobile UI/UX work next, with native/backend integration
+afterward. This update implements no UI changes or later identity/calling stages.
 The Flutter development screen is unchanged. No Kotlin FIDO2 bridge or Android
 login UI was added. Before native integration, choose the RP/domain, app identity,
 signing association, pinned Android dependency and a supported physical test phone.

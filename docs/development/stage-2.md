@@ -12,6 +12,37 @@ backend approval request, the reviewer instructed, "implement them, then we will
 develop the app and run it". This authorizes the backend scope below. Android
 RP/app configuration and compatibility remain prerequisites for native work.
 
+## Approved QA correction — 2026-11-18
+
+After reviewing the QA finding that registration with `none` attestation could
+issue a session without a credential signature, the reviewer instructed:
+"If any improvement needed till yet, perform it and commit and push the code".
+This explicitly authorizes the previously proposed standard WebAuthn assertion
+before the first session, the Go security patch and CI vulnerability scanning.
+
+Registration is now a registration ceremony followed by a standard WebAuthn
+assertion. Attestation verification alone creates only bounded pending ceremony
+state: no account, active device, authentication handle or session. The pending
+state binds username, user handle, verified credential and fresh assertion
+challenge. A valid assertion is required before atomically creating the account,
+active device and initial session. No custom signature format or handshake is
+introduced; both ceremonies use the existing verifier and approved policies.
+Migration 3 adds the pending credential field and revokes all earlier sessions
+so previous unverified enrollments cannot retain bearer authority. Stop the API
+before applying it; existing enrolled credentials may authenticate normally.
+
+The registration finish response changes from 201/session to 202/assertion options;
+`POST /v1/accounts/registration/proof` completes enrollment with 201/session. This
+is an incompatible correction to the unreleased v1 contract, before any mobile
+integration. Each phase has a two-minute expiry; the row's three-failure budget
+is shared across both phases. Operation binding prevents replay or skipping proof.
+
+The Go toolchain is patched to 1.26.11 for
+[GO-2026-6859](https://pkg.go.dev/vuln/GO-2026-6859). A pinned govulncheck
+command is added to CI. The next requested product work is mobile UI/UX first,
+with native/backend integration afterward; that does not authorize recovery,
+calling or media-security implementation.
+
 ## Scope and account behavior
 
 - Create an account without a phone number, email, password, or Google sign-in.
@@ -37,7 +68,7 @@ FIDO2 API, verified by a maintained Go WebAuthn library. Do not create our own
 signed-challenge format or handshake. Selected backend verifier:
 [`go-webauthn/webauthn` v0.18.2](https://github.com/go-webauthn/webauthn/releases/tag/v0.18.2).
 Its resolved dependency graph is pinned in `go.mod`/`go.sum` and builds under
-Go 1.26.10. Android library selection remains deferred until native integration.
+Go 1.26.11. Android library selection remains deferred until native integration.
 
 Approved credential policy: ES256 only, platform authenticator,
 `residentKey=discouraged`, and user verification required. Reject backup-eligible
@@ -90,9 +121,13 @@ client-supplied account IDs, origins, or configuration as authoritative.
 
 - `POST /v1/accounts/registration/options`: validate username; create pending
   ceremony context. Do not create an account or reserve the username yet.
-- `POST /v1/accounts/registration/finish`: verify registration; atomically consume
-  the ceremony and create account, device, and initial session. Only one racing
-  request may win a username; return a generic registration conflict otherwise.
+- `POST /v1/accounts/registration/finish`: verify registration; atomically transition
+  to a fresh standard assertion challenge with 202/options. Persist the pending
+  public credential only in ceremony state; create no account, handle or session.
+- `POST /v1/accounts/registration/proof`: verify the assertion with the pending
+  credential; atomically consume the ceremony and create account, active device,
+  handle digest and initial session. Only one racing request may win a username;
+  return a generic registration conflict otherwise.
 - `POST /v1/authentication/options`: accept the device's random 32-byte auth handle
   saved at enrollment, rather than expose username-to-credential lookup.
   Unknown handles receive equivalent-shaped options and cannot authenticate.
@@ -179,7 +214,7 @@ refuse to remove nonempty identity tables. No production rollout is authorized.
 
 ## Concrete review scope — 2026-11-18
 
-The approved implementation increment is the **backend portion of Stage 2**: the six routes above, account/device/ceremony/session storage,
+The approved implementation increment is the **backend portion of Stage 2**: the seven routes above, account/device/ceremony/session storage,
 WebAuthn verification, limits, and synthetic plus real-PostgreSQL tests. Android
 integration follows only after its RP/app configuration and compatibility checks
 are resolved. This split does not change the Stage 2 acceptance requirement for
@@ -243,5 +278,5 @@ Stage 1 acceptance and Stage 2 specification authorization: reviewer, 2026-10-28
 Next-phase preparation and later manual testing requested: reviewer, 2026-11-18.
 Stage 2 backend authentication/security design: **approved by the reviewer,
 2026-11-18**, in response to the explicit backend design approval request.
-Backend verifier dependencies: **pinned and validated under Go 1.26.10**.
+Backend verifier dependencies: **pinned; toolchain patched to Go 1.26.11**.
 Android compatibility/dependency and deployed RP/app configuration: **not validated/selected**.

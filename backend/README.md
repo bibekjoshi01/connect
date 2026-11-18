@@ -22,13 +22,14 @@ Makefile              This component's build/check/run commands
 
 ## Build and test
 
-From this folder, using Go 1.26.10:
+From this folder, using Go 1.26.11:
 
 ```bash
 make build
 make test
 make lint
 # All three: make check
+make security  # Pinned govulncheck; also runs in CI
 ```
 
 Executables are written to `../.build/backend/connect-api` and
@@ -87,3 +88,13 @@ Shared API schemas are in `../contracts/`; server dependency configuration is in
 `../infrastructure/`. Neither folder is part of the Go module. Manage local
 services from the repository root with `make env infra-up` and `make infra-down`,
 or use [the infrastructure project's commands](../infrastructure/README.md).
+
+Registration has three requests: `/v1/accounts/registration/options`, then
+`/finish` (202 with standard assertion options), then `/proof` (201 with the first
+session and device handle). An attestation response alone creates no account or
+session. The contract records the exact request/response shapes.
+
+Before upgrading an existing development database, stop the API, run `make migrate`
+to reach migration 3, then restart it. Migration 3 revokes pre-existing sessions;
+enrolled credentials remain valid for normal signed authentication. Migrations 1
+and 2 are unchanged. Production deployment is not part of this update.

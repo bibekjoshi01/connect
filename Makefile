@@ -3,7 +3,7 @@ FLUTTER ?= flutter
 DART ?= dart
 CLANG_FORMAT ?= clang-format
 
-.PHONY: help build check format env backend-run backend-build backend-test backend-lint backend-migrate backend-integration backend-check api-run api-build api-test api-lint api-migrate api-integration native-build native-test native-check native-format native-format-check mobile-run mobile-deps mobile-check mobile-apk infra-config infra-up infra-up-cache infra-up-turn infra-check infra-check-cache infra-check-turn infra-down
+.PHONY: help build check format env backend-run backend-build backend-test backend-lint backend-migrate backend-integration backend-check backend-security api-run api-build api-test api-lint api-migrate api-integration native-build native-test native-check native-format native-format-check mobile-run mobile-deps mobile-check mobile-apk infra-config infra-up infra-up-cache infra-up-turn infra-check infra-check-cache infra-check-turn infra-down
 
 help:
 	@echo 'Independent projects: mobile-app/, backend/, native-engine/, infrastructure/, contracts/.'
@@ -20,7 +20,7 @@ format: native-format
 env:
 	$(MAKE) -C infrastructure env
 
-backend-run backend-build backend-test backend-lint backend-migrate backend-integration backend-check:
+backend-run backend-build backend-test backend-lint backend-migrate backend-integration backend-check backend-security:
 	$(MAKE) -C backend $(patsubst backend-%,%,$@)
 
 # Keep existing developer commands working after the directory move.

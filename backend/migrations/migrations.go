@@ -8,7 +8,7 @@ import (
 	"github.com/pressly/goose/v3/lock"
 )
 
-const LatestVersion int64 = 2
+const LatestVersion int64 = 3
 
 //go:embed *.sql
 var files embed.FS

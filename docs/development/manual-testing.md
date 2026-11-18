@@ -9,7 +9,7 @@ See [Stage 2 setup and results](stage-2-results.md) for the opt-in RP/TLS settin
 
 ## Prerequisites and automated baseline
 
-- [ ] Docker Engine and Compose v2 are running; Go 1.26.10 is available.
+- [ ] Docker Engine and Compose v2 are running; Go 1.26.11 is available.
 - [ ] For mobile checks, Flutter 3.47.8, JDK 21 and the Android SDK/device are
   configured using [toolchains.md](toolchains.md) and [stage-1.md](stage-1.md).
   The previous temporary Flutter SDK is currently missing.
@@ -57,7 +57,7 @@ curl --max-time 5 -i http://127.0.0.1:8080/v1/me
   without request bodies, credentials or user identifiers.
 - [ ] `/v1/me` returns 404 with authentication settings absent. With explicit RP
   configuration the server requires HTTPS, and this route requires a session.
-- [ ] Applying migrations again succeeds; status remains version 2.
+- [ ] Applying migrations again succeeds; status remains version 3.
 
 For the database outage test, stop only this project's development PostgreSQL:
 
@@ -111,7 +111,9 @@ authentication handles and captured ceremony bodies must not enter Git or test
 reports. Do not add an API that bypasses real verification for manual testing.
 
 - [ ] Register a new username; verify immutable account/Call IDs, exactly one
-  active device, and one live session. Options alone create no account.
+  active device, and one live session only after the signed proof step. Neither
+  options nor attestation finish may create account/device/session rows. Finish
+  must return 202/assertion options without token, profile or device handle.
 - [ ] With that session, `/v1/me` returns only the account's profile. Missing,
   invalid, revoked and expired sessions receive generic 401 responses.
 - [ ] Login rotates the session atomically; the previous token no longer works.

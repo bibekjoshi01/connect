@@ -175,12 +175,18 @@ func (a *accountAPI) loginOptions(t *testing.T, handle string) accounts.Options 
 func finishBody(o accounts.Options, credential json.RawMessage) any {
 	return map[string]any{"ceremony_id": o.CeremonyID, "credential": credential}
 }
+func (a *accountAPI) prepare(t *testing.T, options accounts.Options, auth *authenticator) accounts.Options {
+	t.Helper()
+	var proof accounts.Options
+	a.call(t, "POST", "/v1/accounts/registration/finish", finishBody(options, auth.registration(t, options, 5, origin, rp)), "", 202, &proof)
+	return proof
+}
 func (a *accountAPI) enroll(t *testing.T, username string) (*authenticator, accounts.Session) {
 	t.Helper()
 	auth := newAuthenticator(t)
-	o := a.begin(t, username)
+	proof := a.prepare(t, a.begin(t, username), auth)
 	var session accounts.Session
-	a.call(t, "POST", "/v1/accounts/registration/finish", finishBody(o, auth.registration(t, o, 5, origin, rp)), "", 201, &session)
+	a.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, proof, 5, 0, origin, rp, false)), "", 201, &session)
 	return auth, session
 }
 func (a *accountAPI) count(t *testing.T, query string, want int) {
@@ -193,6 +199,131 @@ func (a *accountAPI) count(t *testing.T, query string, want int) {
 
 func testAccounts(t *testing.T, db *sql.DB) {
 	t.Cleanup(func() { resetAccounts(t, db) })
+
+	t.Run("migration revokes legacy sessions but preserves enrolled credentials", func(t *testing.T) {
+		api := newAccountAPI(t, db)
+		auth, legacy := api.enroll(t, "legacy")
+		var deviceID string
+		var userHandle, credentialID, credential, handleDigest []byte
+		if db.QueryRow(`SELECT id,user_handle,credential_id,credential,auth_handle_digest FROM connect.devices`).Scan(&deviceID, &userHandle, &credentialID, &credential, &handleDigest) != nil {
+			t.Fatal("read synthetic legacy credential")
+		}
+		resetAccounts(t, db)
+		provider, err := migrations.New(db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = provider.Down(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			resetAccounts(t, db)
+			if _, err := provider.Up(context.Background()); err != nil {
+				t.Error("restore current schema")
+			}
+		})
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		if _, err = tx.Exec(`INSERT INTO connect.accounts(id,username,call_id,active_device_id) VALUES($1,$2,$3,$4)`, legacy.Profile.AccountID, legacy.Profile.Username, legacy.Profile.CallID, deviceID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = tx.Exec(`INSERT INTO connect.devices(id,account_id,user_handle,credential_id,credential,auth_handle_digest) VALUES($1,$2,$3,$4,$5,$6)`, deviceID, legacy.Profile.AccountID, userHandle, credentialID, credential, handleDigest); err != nil {
+			t.Fatal(err)
+		}
+		digest, _ := accounts.Digest(legacy.Token)
+		if _, err = tx.Exec(`INSERT INTO connect.sessions(digest,device_id,expires_at) VALUES($1,$2,$3)`, digest, deviceID, legacy.ExpiresAt); err != nil {
+			t.Fatal(err)
+		}
+		if tx.Commit() != nil {
+			t.Fatal("seed legacy identity state")
+		}
+		api.call(t, "GET", "/v1/me", nil, legacy.Token, 200, nil)
+		if _, err = provider.Up(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		api.call(t, "GET", "/v1/me", nil, legacy.Token, 401, nil)
+		api.count(t, `SELECT count(*) FROM connect.accounts`, 1)
+		options := api.loginOptions(t, legacy.AuthHandle)
+		var renewed accounts.Session
+		api.call(t, "POST", "/v1/authentication/finish", finishBody(options, auth.assertion(t, options, 5, 1, origin, rp, false)), "", 200, &renewed)
+		if _, err = provider.Up(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		api.call(t, "GET", "/v1/me", nil, renewed.Token, 200, nil)
+	})
+
+	t.Run("public-key-only registration grants no account authority", func(t *testing.T) {
+		api := newAccountAPI(t, db)
+		original := newAuthenticator(t)
+		publicOnly := &authenticator{key: &ecdsa.PrivateKey{PublicKey: original.key.PublicKey}, id: original.id}
+		if publicOnly.key.D != nil {
+			t.Fatal("fixture retained signing key")
+		}
+		options := api.begin(t, "public_only")
+		var response map[string]json.RawMessage
+		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(options, publicOnly.registration(t, options, 5, origin, rp)), "", 202, &response)
+		if len(response) != 2 || response["token"] != nil || response["auth_handle"] != nil || response["profile"] != nil {
+			t.Fatal("attestation granted account authority")
+		}
+		raw, _ := json.Marshal(response)
+		var proof accounts.Options
+		if json.Unmarshal(raw, &proof) != nil {
+			t.Fatal("invalid proof options")
+		}
+		api.count(t, `SELECT count(*) FROM connect.accounts`, 0)
+		api.count(t, `SELECT count(*) FROM connect.devices`, 0)
+		api.count(t, `SELECT count(*) FROM connect.sessions`, 0)
+		wrongKey := newAuthenticator(t)
+		wrongKey.id = publicOnly.id
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, wrongKey.assertion(t, proof, 5, 0, origin, rp, false)), "", 401, nil)
+		api.count(t, `SELECT count(*) FROM connect.accounts`, 0)
+		// The actual key holder can finish the same pending enrollment.
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, original.assertion(t, proof, 5, 0, origin, rp, false)), "", 201, nil)
+	})
+	for _, tc := range []struct {
+		name          string
+		flags         byte
+		where, domain string
+		corrupt       bool
+	}{
+		{"wrong origin", 5, "https://evil.test", rp, false}, {"wrong RP", 5, origin, "evil.test", false},
+		{"missing verification", 1, origin, rp, false}, {"missing presence", 4, origin, rp, false},
+		{"backup eligible", 13, origin, rp, false}, {"invalid signature", 5, origin, rp, true},
+	} {
+		t.Run("reject enrollment proof "+tc.name, func(t *testing.T) {
+			api := newAccountAPI(t, db)
+			auth := newAuthenticator(t)
+			proof := api.prepare(t, api.begin(t, "alice"), auth)
+			api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, proof, tc.flags, 0, tc.where, tc.domain, tc.corrupt)), "", 401, nil)
+			api.count(t, `SELECT count(*) FROM connect.accounts`, 0)
+			api.count(t, `SELECT count(*) FROM connect.devices`, 0)
+			api.count(t, `SELECT count(*) FROM connect.sessions`, 0)
+		})
+	}
+	t.Run("enrollment proof cannot skip phases exceed attempts or outlive expiry", func(t *testing.T) {
+		api := newAccountAPI(t, db)
+		auth := newAuthenticator(t)
+		options := api.begin(t, "alice")
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(options, auth.registration(t, options, 5, origin, rp)), "", 401, nil)
+		// A failed registration consumes the same budget as later proof failures.
+		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(options, auth.registration(t, options, 1, origin, rp)), "", 401, nil)
+		proof := api.prepare(t, options, auth)
+		api.call(t, "POST", "/v1/authentication/finish", finishBody(proof, auth.assertion(t, proof, 5, 0, origin, rp, false)), "", 401, nil)
+		// A signature over the original registration challenge is not a proof
+		// over the fresh assertion challenge, even with the correct private key.
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, options, 5, 0, origin, rp, false)), "", 401, nil)
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, proof, 5, 0, origin, rp, true)), "", 401, nil)
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, proof, 5, 0, origin, rp, false)), "", 401, nil)
+		expiring := api.prepare(t, api.begin(t, "bob"), auth)
+		if _, err := db.Exec(`UPDATE connect.ceremonies SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, expiring.CeremonyID); err != nil {
+			t.Fatal(err)
+		}
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(expiring, auth.assertion(t, expiring, 5, 0, origin, rp, false)), "", 401, nil)
+		api.count(t, `SELECT count(*) FROM connect.accounts`, 0)
+	})
 	t.Run("HTTPS enrollment rotation logout and persisted state", func(t *testing.T) {
 		api := newAccountAPI(t, db)
 		auth, initial := api.enroll(t, "Alice_7")
@@ -298,7 +429,10 @@ func testAccounts(t *testing.T, db *sql.DB) {
 		o := api.begin(t, "alice")
 		response := auth.registration(t, o, 5, origin, rp)
 		api.call(t, "POST", "/v1/authentication/finish", finishBody(o, response), "", 401, nil)
-		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(o, response), "", 201, nil)
+		var proof accounts.Options
+		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(o, response), "", 202, &proof)
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, proof, 5, 0, origin, rp, false)), "", 201, nil)
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(proof, auth.assertion(t, proof, 5, 0, origin, rp, false)), "", 401, nil)
 		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(o, response), "", 401, nil)
 		pending := api.begin(t, "bob")
 		if _, err := db.Exec(`UPDATE connect.ceremonies SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`, pending.CeremonyID); err != nil {
@@ -312,9 +446,11 @@ func testAccounts(t *testing.T, db *sql.DB) {
 		auth, _ := api.enroll(t, "alice")
 		sameUser := api.begin(t, "ALICE")
 		other := newAuthenticator(t)
-		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(sameUser, other.registration(t, sameUser, 5, origin, rp)), "", 409, nil)
+		sameUserProof := api.prepare(t, sameUser, other)
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(sameUserProof, other.assertion(t, sameUserProof, 5, 0, origin, rp, false)), "", 409, nil)
 		reused := api.begin(t, "bob")
-		api.call(t, "POST", "/v1/accounts/registration/finish", finishBody(reused, auth.registration(t, reused, 5, origin, rp)), "", 409, nil)
+		reusedProof := api.prepare(t, reused, auth)
+		api.call(t, "POST", "/v1/accounts/registration/proof", finishBody(reusedProof, auth.assertion(t, reusedProof, 5, 0, origin, rp, false)), "", 409, nil)
 		api.count(t, `SELECT count(*) FROM connect.accounts`, 1)
 		api.count(t, `SELECT count(*) FROM connect.devices`, 1)
 		api.count(t, `SELECT count(*) FROM connect.sessions`, 1)
@@ -326,59 +462,91 @@ func testAccounts(t *testing.T, db *sql.DB) {
 		api.call(t, "POST", "/v1/authentication/finish", finishBody(o, auth.assertion(t, o, 5, 1, origin, rp, false)), "", 401, nil)
 		api.count(t, `SELECT count(*) FROM connect.sessions`, 0)
 	})
-	t.Run("concurrent registration consumption and username races", func(t *testing.T) {
+	t.Run("concurrent registration transition proof consumption and username races", func(t *testing.T) {
 		api := newAccountAPI(t, db)
-		raceRegistration := func(options []accounts.Options) {
+		auth := newAuthenticator(t)
+		options := api.begin(t, "alice")
+		body := auth.registration(t, options, 5, origin, rp)
+		type outcome struct {
+			proof accounts.Options
+			err   error
+		}
+		out := make(chan outcome, 2)
+		var wg sync.WaitGroup
+		for i := 0; i < 2; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				proof, err := api.service.FinishRegistration(context.Background(), options.CeremonyID, body)
+				out <- outcome{proof, err}
+			}()
+		}
+		wg.Wait()
+		close(out)
+		successes := 0
+		var proof accounts.Options
+		for result := range out {
+			if result.err == nil {
+				successes++
+				proof = result.proof
+			} else if !errors.Is(result.err, accounts.ErrUnauthorized) {
+				t.Fatal("unexpected preparation race result")
+			}
+		}
+		if successes != 1 {
+			t.Fatal("preparation was not single use")
+		}
+		api.count(t, `SELECT count(*) FROM connect.accounts`, 0)
+		raceProof := func(options []accounts.Options, auths []*authenticator) {
 			bodies := make([]json.RawMessage, len(options))
 			for i, o := range options {
-				bodies[i] = newAuthenticator(t).registration(t, o, 5, origin, rp)
+				bodies[i] = auths[i].assertion(t, o, 5, 0, origin, rp, false)
 			}
-			var wg sync.WaitGroup
-			out := make(chan error, len(options))
+			results := make(chan error, len(options))
+			var workers sync.WaitGroup
 			for i, o := range options {
-				wg.Add(1)
+				workers.Add(1)
 				go func() {
-					defer wg.Done()
-					_, err := api.service.FinishRegistration(context.Background(), o.CeremonyID, bodies[i])
-					out <- err
+					defer workers.Done()
+					_, err := api.service.ProveRegistration(context.Background(), o.CeremonyID, bodies[i])
+					results <- err
 				}()
 			}
-			wg.Wait()
-			close(out)
+			workers.Wait()
+			close(results)
 			successes := 0
-			for err := range out {
+			for err := range results {
 				if err == nil {
 					successes++
 				} else if !errors.Is(err, accounts.ErrUnauthorized) && !errors.Is(err, accounts.ErrConflict) {
-					t.Fatal("unexpected race result")
+					t.Fatal("unexpected proof race result")
 				}
 			}
 			if successes != 1 {
-				t.Fatal("enrollment race issued multiple sessions")
+				t.Fatal("enrollment proof race issued multiple sessions")
 			}
 		}
-		o := api.begin(t, "alice")
-		raceRegistration([]accounts.Options{o, o})
+		raceProof([]accounts.Options{proof, proof}, []*authenticator{auth, auth})
 		api.count(t, `SELECT count(*) FROM connect.accounts`, 1)
 		resetAccounts(t, db)
-		one := api.begin(t, "bob")
-		two := api.begin(t, "bob")
-		raceRegistration([]accounts.Options{one, two})
+		oneAuth, twoAuth := newAuthenticator(t), newAuthenticator(t)
+		one := api.prepare(t, api.begin(t, "bob"), oneAuth)
+		two := api.prepare(t, api.begin(t, "bob"), twoAuth)
+		raceProof([]accounts.Options{one, two}, []*authenticator{oneAuth, twoAuth})
 		api.count(t, `SELECT count(*) FROM connect.accounts`, 1)
 	})
-
 	t.Run("concurrent credential reuse cannot create partial accounts", func(t *testing.T) {
 		api := newAccountAPI(t, db)
 		auth := newAuthenticator(t)
-		options := []accounts.Options{api.begin(t, "alice"), api.begin(t, "bob")}
-		bodies := []json.RawMessage{auth.registration(t, options[0], 5, origin, rp), auth.registration(t, options[1], 5, origin, rp)}
+		options := []accounts.Options{api.prepare(t, api.begin(t, "alice"), auth), api.prepare(t, api.begin(t, "bob"), auth)}
+		bodies := []json.RawMessage{auth.assertion(t, options[0], 5, 0, origin, rp, false), auth.assertion(t, options[1], 5, 0, origin, rp, false)}
 		var wg sync.WaitGroup
 		out := make(chan error, 2)
 		for i, o := range options {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				_, err := api.service.FinishRegistration(context.Background(), o.CeremonyID, bodies[i])
+				_, err := api.service.ProveRegistration(context.Background(), o.CeremonyID, bodies[i])
 				out <- err
 			}()
 		}
@@ -594,5 +762,6 @@ func testAccountOutage(t *testing.T, db *sql.DB) {
 	api.call(t, "POST", "/v1/accounts/registration/options", map[string]string{"username": "alice"}, "", 503, nil)
 	api.call(t, "POST", "/v1/authentication/options", map[string]string{"auth_handle": accounts.RandomValue()}, "", 503, nil)
 	api.call(t, "POST", "/v1/accounts/registration/finish", map[string]any{"ceremony_id": accounts.RandomValue(), "credential": map[string]any{}}, "", 503, nil)
+	api.call(t, "POST", "/v1/accounts/registration/proof", map[string]any{"ceremony_id": accounts.RandomValue(), "credential": map[string]any{}}, "", 503, nil)
 	api.call(t, "POST", "/v1/authentication/finish", map[string]any{"ceremony_id": accounts.RandomValue(), "credential": map[string]any{}}, "", 503, nil)
 }

@@ -114,17 +114,19 @@ func TestVerificationConcurrencyBound(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		a.verify <- struct{}{}
 	}
-	r := httptest.NewRequest("POST", "https://connect.test/v1/authentication/finish", strings.NewReader(`{}`))
-	r.RemoteAddr = "127.0.0.1:1234"
-	w := httptest.NewRecorder()
-	a.ServeHTTP(w, r)
-	if w.Code != 429 {
-		t.Fatal("excess verification work was admitted")
-	}
-	var body map[string]string
-	_ = json.Unmarshal(w.Body.Bytes(), &body)
-	if body["error"] != "rate_limited" {
-		t.Fatal("unexpected concurrency response")
+	for _, path := range []string{"/v1/authentication/finish", "/v1/accounts/registration/finish", "/v1/accounts/registration/proof"} {
+		r := httptest.NewRequest("POST", "https://connect.test"+path, strings.NewReader(`{}`))
+		r.RemoteAddr = "127.0.0.1:1234"
+		w := httptest.NewRecorder()
+		a.ServeHTTP(w, r)
+		if w.Code != 429 {
+			t.Fatal("excess verification work was admitted")
+		}
+		var body map[string]string
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		if body["error"] != "rate_limited" {
+			t.Fatal("unexpected concurrency response")
+		}
 	}
 }
 

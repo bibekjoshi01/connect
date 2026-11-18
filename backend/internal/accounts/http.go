@@ -154,7 +154,7 @@ func (a *httpAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		category = 0
 	case "/v1/authentication/options":
 		category = 1
-	case "/v1/accounts/registration/finish", "/v1/authentication/finish":
+	case "/v1/accounts/registration/finish", "/v1/accounts/registration/proof", "/v1/authentication/finish":
 		category = 2
 	case "/v1/me", "/v1/sessions/current":
 		method := http.MethodGet
@@ -235,9 +235,18 @@ func (a *httpAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			failure(w, ErrInvalid)
 			return
 		}
-		var result Session
 		if r.URL.Path == "/v1/accounts/registration/finish" {
-			result, err = a.service.FinishRegistration(r.Context(), body.ID, body.Credential)
+			result, err := a.service.FinishRegistration(r.Context(), body.ID, body.Credential)
+			if err != nil {
+				failure(w, err)
+				return
+			}
+			reply(w, http.StatusAccepted, result)
+			return
+		}
+		var result Session
+		if r.URL.Path == "/v1/accounts/registration/proof" {
+			result, err = a.service.ProveRegistration(r.Context(), body.ID, body.Credential)
 		} else {
 			result, err = a.service.FinishAuthentication(r.Context(), body.ID, body.Credential)
 		}
@@ -245,9 +254,9 @@ func (a *httpAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			failure(w, err)
 			return
 		}
-		status := 200
-		if r.URL.Path == "/v1/accounts/registration/finish" {
-			status = 201
+		status := http.StatusOK
+		if r.URL.Path == "/v1/accounts/registration/proof" {
+			status = http.StatusCreated
 		}
 		reply(w, status, result)
 	}

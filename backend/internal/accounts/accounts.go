@@ -30,11 +30,12 @@ var (
 )
 
 const (
-	Registration     = "registration"
-	Authentication   = "authentication"
-	CeremonyTTL      = 2 * time.Minute
-	SessionTTL       = 15 * time.Minute
-	OperationTimeout = 2 * time.Second
+	Registration      = "registration"
+	RegistrationProof = "registration_proof"
+	Authentication    = "authentication"
+	CeremonyTTL       = 2 * time.Minute
+	SessionTTL        = 15 * time.Minute
+	OperationTimeout  = 2 * time.Second
 )
 
 // Repository is owned by this module. Finish callbacks run under database locks
@@ -43,6 +44,7 @@ const (
 type Repository interface {
 	SaveCeremony(context.Context, Ceremony) error
 	FindDevice(context.Context, []byte) (Device, error)
+	PrepareRegistration(context.Context, string, func(Ceremony) (PreparedRegistration, error)) (Options, error)
 	Register(context.Context, string, func(Ceremony) (Enrollment, error)) (Session, error)
 	Authenticate(context.Context, string, func(Ceremony, Device) (webauthn.Credential, Session, error)) (Session, error)
 	Profile(context.Context, []byte) (Profile, error)
@@ -62,13 +64,14 @@ type Session struct {
 	AuthHandle string    `json:"auth_handle,omitempty"`
 }
 type Ceremony struct {
-	ID        string
-	Operation string
-	Username  string
-	UserID    []byte
-	DeviceID  string
-	Data      webauthn.SessionData
-	ExpiresAt time.Time
+	ID                string
+	Operation         string
+	Username          string
+	UserID            []byte
+	DeviceID          string
+	Data              webauthn.SessionData
+	ExpiresAt         time.Time
+	PendingCredential *webauthn.Credential
 }
 type Device struct {
 	ID         string
@@ -91,6 +94,11 @@ type Enrollment struct {
 	Device       Device
 	Session      Session
 	HandleDigest []byte
+}
+type PreparedRegistration struct {
+	Credential webauthn.Credential
+	Data       webauthn.SessionData
+	PublicKey  any
 }
 type Options struct {
 	CeremonyID string `json:"ceremony_id"`
@@ -202,31 +210,55 @@ func (s *Service) BeginAuthentication(ctx context.Context, handle string) (Optio
 	}
 	return Options{CeremonyID: c.ID, PublicKey: assertion.Response}, nil
 }
-func (s *Service) FinishRegistration(ctx context.Context, id string, raw json.RawMessage) (Session, error) {
+
+// FinishRegistration verifies attestation but grants no account authority.
+// A fresh standard assertion proves possession before final enrollment.
+func (s *Service) FinishRegistration(ctx context.Context, id string, raw json.RawMessage) (Options, error) {
 	if _, err := DecodeValue(id); err != nil {
-		return Session{}, ErrUnauthorized
+		return Options{}, ErrUnauthorized
 	}
-	return s.repo.Register(ctx, id, func(c Ceremony) (Enrollment, error) {
+	return s.repo.PrepareRegistration(ctx, id, func(c Ceremony) (PreparedRegistration, error) {
 		var standard protocol.CredentialCreationResponse
 		if strictCredential(raw, &standard) != nil {
-			return Enrollment{}, ErrUnauthorized
+			return PreparedRegistration{}, ErrUnauthorized
 		}
 		parsed, err := protocol.ParseCredentialCreationResponseBytes(raw)
 		if err != nil {
-			return Enrollment{}, ErrUnauthorized
+			return PreparedRegistration{}, ErrUnauthorized
 		}
 		d := Device{UserID: c.UserID, Profile: Profile{Username: c.Username}}
 		credential, err := s.verifier.CreateCredential(d, c.Data, parsed)
 		if err != nil || credential == nil {
-			return Enrollment{}, ErrUnauthorized
+			return PreparedRegistration{}, ErrUnauthorized
 		}
 		if !acceptable(*credential) || !parsed.Response.AttestationObject.AuthData.Flags.HasUserVerified() {
+			return PreparedRegistration{}, ErrUnauthorized
+		}
+		d.Credential = *credential
+		assertion, session, err := s.verifier.BeginLogin(d, webauthn.WithUserVerification(protocol.VerificationRequired))
+		if err != nil {
+			return PreparedRegistration{}, ErrUnavailable
+		}
+		return PreparedRegistration{Credential: *credential, Data: *session, PublicKey: assertion.Response}, nil
+	})
+}
+func (s *Service) ProveRegistration(ctx context.Context, id string, raw json.RawMessage) (Session, error) {
+	if _, err := DecodeValue(id); err != nil {
+		return Session{}, ErrUnauthorized
+	}
+	return s.repo.Register(ctx, id, func(c Ceremony) (Enrollment, error) {
+		if c.PendingCredential == nil {
 			return Enrollment{}, ErrUnauthorized
+		}
+		d := Device{UserID: c.UserID, Profile: Profile{Username: c.Username}, Credential: *c.PendingCredential}
+		credential, err := s.verifyAssertion(c, d, raw)
+		if err != nil {
+			return Enrollment{}, err
 		}
 		d.ID = uuid.NewString()
 		d.Profile.AccountID = uuid.NewString()
 		d.Profile.CallID = hex.EncodeToString(randomBytes(16))
-		d.Credential = *credential
+		d.Credential = credential
 		session := newSession(d.Profile)
 		session.AuthHandle = RandomValue()
 		digest, _ := Digest(session.AuthHandle)
@@ -238,23 +270,30 @@ func (s *Service) FinishAuthentication(ctx context.Context, id string, raw json.
 		return Session{}, ErrUnauthorized
 	}
 	return s.repo.Authenticate(ctx, id, func(c Ceremony, d Device) (webauthn.Credential, Session, error) {
-		var standard protocol.CredentialAssertionResponse
-		if strictCredential(raw, &standard) != nil {
-			return webauthn.Credential{}, Session{}, ErrUnauthorized
-		}
-		parsed, err := protocol.ParseCredentialRequestResponseBytes(raw)
+		credential, err := s.verifyAssertion(c, d, raw)
 		if err != nil {
-			return webauthn.Credential{}, Session{}, ErrUnauthorized
+			return webauthn.Credential{}, Session{}, err
 		}
-		credential, err := s.verifier.ValidateLogin(d, c.Data, parsed)
-		if err != nil || credential == nil {
-			return webauthn.Credential{}, Session{}, ErrUnauthorized
-		}
-		if !acceptable(*credential) || !parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
-			return webauthn.Credential{}, Session{}, ErrUnauthorized
-		}
-		return *credential, newSession(d.Profile), nil
+		return credential, newSession(d.Profile), nil
 	})
+}
+func (s *Service) verifyAssertion(c Ceremony, d Device, raw json.RawMessage) (webauthn.Credential, error) {
+	var standard protocol.CredentialAssertionResponse
+	if strictCredential(raw, &standard) != nil {
+		return webauthn.Credential{}, ErrUnauthorized
+	}
+	parsed, err := protocol.ParseCredentialRequestResponseBytes(raw)
+	if err != nil {
+		return webauthn.Credential{}, ErrUnauthorized
+	}
+	credential, err := s.verifier.ValidateLogin(d, c.Data, parsed)
+	if err != nil || credential == nil {
+		return webauthn.Credential{}, ErrUnauthorized
+	}
+	if !acceptable(*credential) || !parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
+		return webauthn.Credential{}, ErrUnauthorized
+	}
+	return *credential, nil
 }
 func acceptable(c webauthn.Credential) bool {
 	return c.Flags.UserPresent && c.Flags.UserVerified && !c.Flags.BackupEligible && !c.Flags.BackupState && !c.Authenticator.CloneWarning

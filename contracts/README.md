@@ -11,7 +11,9 @@ These paths are stable; their schema version is tracked in the contract. Keep
 operational endpoints on private ingress; no public operational access is approved.
 
 Stage 2 accounts are specified in `rest/accounts-v1.openapi.yaml`: WebAuthn
-registration/assertion options and finish routes, own-profile access and logout.
+registration options, attestation finish, mandatory signed enrollment proof,
+authentication options/finish, own-profile access and logout. Registration finish
+returns 202/assertion options; only registration proof creates an account/session.
 The routes require HTTPS and explicit RP configuration; sessions are opaque
 15-minute bearer credentials. There is no public account lookup or recovery API.
 

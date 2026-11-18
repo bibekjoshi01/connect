@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Connect accounts and device authentication
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Approved Stage 2 backend. HTTPS required, including local authentication
     requests. Routes are enabled only with explicit RP configuration. No cookies,
@@ -9,7 +9,9 @@ info:
     Cache-Control no-store. All binary fields use unpadded base64url. Request
     bodies are limited to 32768 bytes; unknown envelope fields and duplicate JSON
     keys are rejected. WebAuthn credential responses follow the standard JSON
-    serialization. No device private keys are sent to this API.
+    serialization. No device private keys are sent to this API. This unreleased
+    contract revises registration/finish to return 202/assertion options instead
+    of a session; clients must complete registration/proof before authentication.
 security: []
 paths:
   /v1/accounts/registration/options:
@@ -37,16 +39,32 @@ paths:
     post:
       operationId: finishRegistration
       description: >-
-        Atomically consumes a registration ceremony and creates one account,
-        active device and session. Save auth_handle privately on the device;
-        it is returned only here. Lost enrollment response/metadata can strand
-        an account; do not retry expecting credential disclosure. A username or
-        reused credential conflict returns a generic 409.
+        Verifies registration and atomically transitions its pending context to
+        a fresh standard WebAuthn assertion. Returns no account, session or auth
+        handle and does not reserve a username. The response uses the same
+        ceremony_id, now bound to the proof operation, with two-minute expiry.
+      requestBody:
+        $ref: '#/components/requestBodies/Finish'
+      responses:
+        '202':
+          $ref: '#/components/responses/Options'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/accounts/registration/proof:
+    post:
+      operationId: proveRegistration
+      description: >-
+        Verifies a standard WebAuthn assertion for the pending credential and
+        atomically creates the account, active device and initial session. Save
+        auth_handle privately on the device; it is returned only here. Lost
+        enrollment response/metadata can strand an account; do not retry
+        expecting credential disclosure. Username or credential conflicts return
+        generic 409. Replay, wrong operation or invalid proof returns 401.
       requestBody:
         $ref: '#/components/requestBodies/Finish'
       responses:
         '201':
-          description: Enrollment committed; raw handle and token are never stored by the server.
+          description: Enrollment committed after proof; raw handle/token are never stored by the server.
           content:
             application/json:
               schema:
@@ -208,7 +226,7 @@ components:
         Verifier, database and credential details are never returned. All responses
         carry Cache-Control no-store. Missing/invalid/replayed/expired ceremony
         responses share unauthorized. Finish attempts are limited to three per
-        ceremony. There is no automatic retry after an ambiguous enrollment commit.
+        ceremony, shared across the two enrollment phases. There is no automatic retry after an ambiguous enrollment commit.
       content:
         application/json:
           schema:

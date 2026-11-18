@@ -9,7 +9,9 @@ design](../development/stage-2.md) on 2026-11-18 by directing implementation aft
 the backend design approval request. This approval covers WebAuthn enrollment,
 device login, one active device, short opaque sessions and the specified abuse
 limits. It does not approve peer key establishment, encrypted media, recovery or
-transfer. Android RP/app association and compatibility remain unresolved.
+transfer. Following the QA findings, the reviewer authorized the mandatory
+standard WebAuthn enrollment assertion, security patch and CI scan on 2026-11-18.
+Android RP/app association and compatibility remain unresolved.
 
 ## Peer key establishment proposal
 
