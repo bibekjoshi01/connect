@@ -1,13 +1,25 @@
 # Stage boundaries
 
-Current stage: **1 — backend foundation implemented, awaiting review**.
-Stage 0 was reviewed and committed locally. Do not start Stage 2 before review.
+Current stage: **2 — backend implemented and automated checks passed; awaiting
+human review and native integration**.
+Stage 1 was accepted on 2026-10-28. On 2026-11-18 the reviewer approved the
+[Stage 2 backend design](stage-2.md) by directing implementation in response to
+the explicit security-design approval request. Registration, device WebAuthn
+authentication, profile access and revocable sessions are now implemented.
+See [implementation and validation](stage-2-results.md) and the
+[manual acceptance checklist](manual-testing.md).
+
+Android authentication integration remains unimplemented: RP/domain/origin/app
+association and physical-device compatibility must be resolved before that work.
+The Flutter app still shows its development shell. Review Stage 2 before Stage 3;
+recovery, transfer, signaling, calling and media security remain outside this
+increment.
 
 ## Stage 1 implementation and review
 
 Backend connectivity, migrations, readiness, metrics and isolated integration
 tests are implemented. See `stage-1.md` for commands and validation results.
-The following list records the authorized scope; Stage 2 remains review-gated.
+The following list records the completed stage's authorized scope.
 
 1. Approve backend configuration conventions and migration runner selection.
 2. Add a pinned PostgreSQL driver, bounded connection pool, connection/startup

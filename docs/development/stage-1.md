@@ -112,13 +112,13 @@ export PATH="/tmp/connect-flutter-sdk/bin:$ANDROID_HOME/platform-tools:$ANDROID_
 make mobile-apk
 ```
 
-The APK is `apps/mobile/build/app/outputs/flutter-apk/app-debug.apk`. Launch the
+The APK is `mobile-app/build/app/outputs/flutter-apk/app-debug.apk`. Launch the
 existing preview emulator and install it with:
 
 ```bash
 emulator -avd Connect_API_36 -no-snapshot -no-boot-anim -gpu swiftshader -memory 2048 -no-audio
 # In another terminal with the same environment, once Android has booted:
-adb -s emulator-5554 install -r apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+adb -s emulator-5554 install -r mobile-app/build/app/outputs/flutter-apk/app-debug.apk
 adb -s emulator-5554 shell am start -n dev.connect.connect_mobile/.MainActivity
 ```
 

@@ -3,8 +3,8 @@
 - Work stage by stage. Stage 1 is authorized; request human review before Stage 2.
 - Read `docs/architecture/overview.md` and `docs/development/stages.md` before changing architecture.
 - No WebRTC engine, authentication, calling, media protocol, or AI in Stages 0–1.
-- Keep Flutter presentation in `apps/mobile`; continuous audio/network work belongs in native code.
-- Keep `engine/rtc` portable C++20, independent of Flutter, Android UI, and account storage.
+- Keep Flutter presentation in `mobile-app`; continuous audio/network work belongs in native code.
+- Keep `native-engine` portable C++20, independent of Flutter, Android UI, and account storage.
 - Keep Android lifecycle, Keystore, Telecom, and audio routing behind Kotlin platform interfaces.
 - Keep the Go backend a modular monolith; add domain modules only when implemented.
 - Account/auth code must not depend on the media engine. Storage uses module-owned interfaces.

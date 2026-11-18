@@ -1,7 +1,10 @@
 # Architecture review — Stage 0
 
-Status: Stage 0 reviewed; Stage 1 backend foundation authorized and implemented.
-Security-specific protocol proposals still require their separate approvals.
+Status: Stage 1 reviewed on 2026-10-28. The reviewer approved the
+[Stage 2 backend authentication design](../development/stage-2.md) on 2026-11-18;
+its backend implementation is described in [Stage 2 results](../development/stage-2-results.md).
+Android integration is still pending. Recovery and media-security proposals
+still require their own approval before implementation.
 The repository was empty. No existing Account & Identity specification was found.
 The supplied project requirements remain authoritative.
 
@@ -20,7 +23,8 @@ The supplied project requirements remain authoritative.
   `connect.local/api` is a local module name, not an internet domain dependency.
 - PostgreSQL: bounded pgx/database/sql connectivity, explicit Goose migrations,
   and read-only dependency readiness. The first migration creates only the
-  application namespace. Account/device/recovery tables remain deferred.
+  application namespace; Stage 2 adds account/device/ceremony/session tables.
+  Recovery tables remain deferred.
 - Redis: optional local Compose profile. Its production use must be justified
   (e.g. bounded ephemeral coordination/rate limiting); it cannot be the source of
   truth for device revocation. Not connected to the API yet.
@@ -28,15 +32,29 @@ The supplied project requirements remain authoritative.
 - FCM and HTTPS/WSS ingress: deferred until their stages. Caddy versus Nginx is
   undecided; Stage 0 HTTP is loopback development only.
 
+## Repository components
+
+The independent source projects are `mobile-app/`, `backend/` and `native-engine/`.
+Shared API definitions live in top-level `contracts/`; independently managed
+service configuration lives in top-level `infrastructure/`. Mobile and backend
+follow the same versioned API definitions. Each buildable component owns its
+Makefile and README; the root coordinates them. See the
+[component layout decision](../decisions/0003-component-layout.md) for ownership
+and how the app/library/server fit together.
+
 ## Boundaries and dependencies
 
-`apps/mobile/lib/app` owns presentation. Future feature modules depend on narrow
+`mobile-app/lib/app` owns presentation. Future feature modules depend on narrow
 application/native interfaces. Kotlin platform code owns OS concerns; a future
-FFI/JNI bridge delegates media to `engine/rtc`. The engine has no Flutter,
+FFI/JNI bridge delegates media to `native-engine`. The engine has no Flutter,
 account database, or backend dependency. The bridge and packaging are deferred.
 
-`services/api/cmd/api` composes configuration and HTTP transport. Future domain
-modules own their repository interfaces; infrastructure adapters implement them.
+`backend/cmd/api` composes configuration and HTTP transport. The accounts
+module owns its repository interface; its PostgreSQL adapter implements it.
+Device authentication uses the pinned WebAuthn verifier, without a media-engine
+dependency. Account routes require explicit RP configuration and HTTPS; their
+sessions and active-device authority are checked in PostgreSQL on every request.
+Future domain modules follow the same storage ownership boundary.
 REST and authenticated WebSockets form the control plane. Direct UDP/TURN carries
 encrypted media; the server and relay must never obtain media decryption keys.
 
@@ -61,7 +79,7 @@ and cancellable by the trusted device. No administrator takeover bypass.
   jitter, loss, NAT, congestion, battery, and Android lifecycle require real-device
   measurements. No WebRTC engine is allowed.
 - App-to-app lookup needs abuse prevention without turning random Call IDs into
-  an account enumeration API. Identifier formats remain unapproved.
+  an account enumeration API. Stage 2 account/Call ID formats are approved; public lookup remains deferred.
 - An untrusted signaling server can substitute first-contact identity keys unless
   users authenticate them independently. See `../security/review-gates.md`.
 - Android force-stop, disabled notifications, OEM restrictions, and unavailable

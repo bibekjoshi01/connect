@@ -1,7 +1,7 @@
 # Toolchain baseline
 
 Flutter 3.47.8 (official tag `737ba8f885dc774b53b442759999a312c9461e4e`),
-bundled Dart 3.13.7. `.flutter-version`, the generated metadata and CI pin the
+bundled Dart 3.13.7. `mobile-app/.flutter-version`, the generated metadata and CI pin the
 baseline; update them together with `pubspec.lock` and validate again.
 Flutter's stable channel is the recommended baseline for new applications:
 https://docs.flutter.dev/install/archive
@@ -10,6 +10,8 @@ Go language floor: 1.26.0. The module toolchain directive and CI pin patched Go
 1.26.10. The preinstalled system Go is 1.26.2; validation uses the downloaded
 1.26.10 toolchain in the ignored project cache. Stage 1 pins pgx v5.11.0 and Goose
 v3.29.0; transitive versions/checksums are committed in `go.mod` and `go.sum`.
+Stage 2 additionally pins go-webauthn/webauthn v0.18.2 and its resolved graph;
+backend builds and tests pass under the same Go 1.26.10 toolchain.
 Check upstream release/security notes before each toolchain update:
 https://go.dev/doc/devel/release
 

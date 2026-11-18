@@ -24,8 +24,8 @@ jobs:
         with:
           go-version: '1.26.10'
           cache: false # The Makefile uses project-local Go caches.
-      - run: make api-lint api-test api-build
-      - run: make env api-integration
+      - run: make -C backend check
+      - run: make -C backend integration
 
   native:
     runs-on: ubuntu-24.04
@@ -35,8 +35,8 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m venv .tools/format
-      - run: .tools/format/bin/python -m pip install -r infra/tooling/requirements.txt
-      - run: make native-format-check native-test CLANG_FORMAT=.tools/format/bin/clang-format
+      - run: .tools/format/bin/python -m pip install -r native-engine/tooling/requirements.txt
+      - run: make native-format-check native-test CLANG_FORMAT="$PWD/.tools/format/bin/clang-format"
 
   mobile:
     runs-on: ubuntu-24.04
@@ -56,13 +56,13 @@ jobs:
           channel: stable
           flutter-version: '3.47.8'
       - run: make mobile-check mobile-apk
-      - run: cd apps/mobile/android && ./gradlew lintDebug --no-daemon
+      - run: cd mobile-app/android && ./gradlew lintDebug --no-daemon
       - name: Cross-compile the independent native library for Android arm64
         run: |
-          cmake -S engine/rtc -B .build/rtc-android \
+          cmake -S native-engine -B .build/native-engine-android \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/28.2.13676358/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DBUILD_TESTING=OFF
-          cmake --build .build/rtc-android --parallel
+          cmake --build .build/native-engine-android --parallel
 
   infrastructure:
     runs-on: ubuntu-24.04
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - run: make env infra-config infra-up-cache infra-up-turn infra-check-cache infra-check-turn
+      - run: make -C infrastructure env config up-cache up-turn check-cache check-turn
       - name: Stop local services and delete CI-only data
         if: always()
-        run: docker compose --env-file .env -f infra/compose/compose.yaml --profile cache --profile turn down --volumes
+        run: docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile cache --profile turn down --volumes

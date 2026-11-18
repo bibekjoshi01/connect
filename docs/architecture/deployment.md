@@ -1,21 +1,23 @@
 # Separate app and server deployment
 
-Status: explanation and proposed future deployment flow. Stage 1 builds local
-components with PostgreSQL readiness/migrations; production deployment remains
-unimplemented and requires later approval.
+Status: current component boundaries and proposed future deployment flow.
+The Stage 2 backend and mobile development shell build separately. Production
+deployment remains unimplemented and requires later approval.
 
 ## Projects and runtime locations
 
-`apps/mobile` is the Android application. Flutter/Dart and Kotlin run on the
-phone. `engine/rtc` is a portable native library intended for inclusion in that
+`mobile-app` is the Android application. Flutter/Dart and Kotlin run on the
+phone. `native-engine` is a portable native library intended for inclusion in that
 application later; it is not a remotely hosted RTC processing service.
 
-`services/api` is a separate Go server. It will own account operations and
-authenticated signaling. PostgreSQL stores server data, Redis is optional and
+`backend` is a separate Go server. It implements account operations;
+authenticated signaling remains a future stage. PostgreSQL stores server data, Redis is optional and
 needs a demonstrated use, and coturn provides standard STUN/TURN infrastructure.
 Server components do not require a Flutter installation in their release image.
 
-`contracts` is shared source documentation/schema material, not a runtime service.
+`contracts` holds shared API definitions used by the server and mobile client;
+it has no runtime process. `infrastructure` owns independently managed dependency
+services. Both live at the repository root, outside application source.
 One repository supports coordinated changes while preserving separate builds,
 configuration, deployments and version compatibility.
 

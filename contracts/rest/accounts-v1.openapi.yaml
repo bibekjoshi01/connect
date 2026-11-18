@@ -1,0 +1,215 @@
+openapi: 3.1.0
+info:
+  title: Connect accounts and device authentication
+  version: 1.0.0
+  description: >-
+    Approved Stage 2 backend. HTTPS required, including local authentication
+    requests. Routes are enabled only with explicit RP configuration. No cookies,
+    refresh tokens, public directory, recovery or transfer. JSON responses use
+    Cache-Control no-store. All binary fields use unpadded base64url. Request
+    bodies are limited to 32768 bytes; unknown envelope fields and duplicate JSON
+    keys are rejected. WebAuthn credential responses follow the standard JSON
+    serialization. No device private keys are sent to this API.
+security: []
+paths:
+  /v1/accounts/registration/options:
+    post:
+      operationId: beginRegistration
+      description: Creates a two-minute ceremony; does not reserve a username or create an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [username]
+              properties:
+                username:
+                  type: string
+                  pattern: '^[a-zA-Z][a-zA-Z0-9_]{2,31}$'
+      responses:
+        '200':
+          $ref: '#/components/responses/Options'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/accounts/registration/finish:
+    post:
+      operationId: finishRegistration
+      description: >-
+        Atomically consumes a registration ceremony and creates one account,
+        active device and session. Save auth_handle privately on the device;
+        it is returned only here. Lost enrollment response/metadata can strand
+        an account; do not retry expecting credential disclosure. A username or
+        reused credential conflict returns a generic 409.
+      requestBody:
+        $ref: '#/components/requestBodies/Finish'
+      responses:
+        '201':
+          description: Enrollment committed; raw handle and token are never stored by the server.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Session'
+                  - type: object
+                    required: [auth_handle]
+                    properties:
+                      auth_handle:
+                        $ref: '#/components/schemas/RandomValue'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/authentication/options:
+    post:
+      operationId: beginAuthentication
+      description: >-
+        Requires the handle saved at enrollment. Unknown handles receive
+        equivalent-shaped options but cannot finish authentication. This does
+        not promise indistinguishable timing or credential-ID lengths.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [auth_handle]
+              properties:
+                auth_handle:
+                  $ref: '#/components/schemas/RandomValue'
+      responses:
+        '200':
+          $ref: '#/components/responses/Options'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/authentication/finish:
+    post:
+      operationId: finishAuthentication
+      description: Atomically consumes an assertion ceremony and replaces the device's previous session.
+      requestBody:
+        $ref: '#/components/requestBodies/Finish'
+      responses:
+        '200':
+          description: New session; previous bearer token is revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/me:
+    get:
+      operationId: getOwnProfile
+      security:
+        - bearer: []
+      responses:
+        '200':
+          description: Current profile; PostgreSQL checks the session and active device on every request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/sessions/current:
+    delete:
+      operationId: logout
+      security:
+        - bearer: []
+      description: Revokes this session while retaining the device's credential.
+      responses:
+        '204':
+          description: Revocation committed; requests already authorized may be in flight.
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque 32 random bytes, unpadded base64url
+  requestBodies:
+    Finish:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [ceremony_id, credential]
+            properties:
+              ceremony_id:
+                $ref: '#/components/schemas/RandomValue'
+              credential:
+                type: object
+                description: >-
+                  Standard RegistrationResponseJSON or AuthenticationResponseJSON,
+                  selected by the route; passed to the WebAuthn verifier. Public
+                  credential id, rawId, type and response are required. Extensions
+                  are subject to the verifier's requested-extension policy.
+                required: [id, rawId, type, response]
+                properties:
+                  id: {type: string}
+                  rawId: {type: string}
+                  type: {const: public-key}
+                  response: {type: object}
+                  clientExtensionResults: {type: object}
+                  authenticatorAttachment: {type: string}
+  schemas:
+    RandomValue:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      description: Canonical unpadded base64url encoding of 32 random bytes.
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [account_id, username, call_id]
+      properties:
+        account_id: {type: string, format: uuid}
+        username: {type: string, pattern: '^[a-z][a-z0-9_]{2,31}$'}
+        call_id: {type: string, pattern: '^[0-9a-f]{32}$'}
+    Session:
+      type: object
+      required: [token, expires_at, profile]
+      properties:
+        token:
+          $ref: '#/components/schemas/RandomValue'
+        expires_at: {type: string, format: date-time}
+        profile:
+          $ref: '#/components/schemas/Profile'
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          enum: [invalid_request, unauthorized, registration_conflict, rate_limited, unavailable, https_required]
+  responses:
+    Options:
+      description: Standard WebAuthn options wrapped in publicKey plus an opaque ceremony identifier.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [ceremony_id, publicKey]
+            properties:
+              ceremony_id:
+                $ref: '#/components/schemas/RandomValue'
+              publicKey:
+                type: object
+                description: Standard creation/request options; ES256/platform/nonresident registration and required verification.
+    Error:
+      description: >-
+        400 invalid_request or https_required; 404/405 invalid_request; 401 unauthorized; 409
+        registration_conflict; 429 rate_limited (Retry-After 60); 503 unavailable.
+        Verifier, database and credential details are never returned. All responses
+        carry Cache-Control no-store. Missing/invalid/replayed/expired ceremony
+        responses share unauthorized. Finish attempts are limited to three per
+        ceremony. There is no automatic retry after an ambiguous enrollment commit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

@@ -3,6 +3,14 @@
 No authentication, key establishment, encrypted-media protocol, or recovery
 implementation is authorized by the Stage 0 bootstrap.
 
+Stage 1 was reviewed on 2026-10-28 and Stage 2 specification work was authorized.
+The reviewer explicitly approved the [Stage 2 backend account/authentication
+design](../development/stage-2.md) on 2026-11-18 by directing implementation after
+the backend design approval request. This approval covers WebAuthn enrollment,
+device login, one active device, short opaque sessions and the specified abuse
+limits. It does not approve peer key establishment, encrypted media, recovery or
+transfer. Android RP/app association and compatibility remain unresolved.
+
 ## Peer key establishment proposal
 
 Recommendation for evaluation: **mutually authenticated DTLS 1.3**, as specified
