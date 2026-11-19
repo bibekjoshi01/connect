@@ -15,9 +15,13 @@ See [implementation and validation](stage-2-results.md) and the
 
 Android authentication integration remains unimplemented: RP/domain/origin/app
 association and physical-device compatibility must be resolved before that work.
-The Flutter app still shows its development shell. Review Stage 2 before Stage 3;
-recovery, transfer, signaling, calling and media security remain outside this
-increment.
+On 2026-11-19 the reviewer authorized a minimal Flutter UI/UX preview ahead of
+integration: welcome, local profile setup, calls, Call ID entry, call controls
+preview and appearance settings. It has no backend, credential, audio or calling
+integration; preview state resets on restart. This advances presentation only,
+without completing Stage 4 or Android authentication acceptance.
+Review Stage 2 before Stage 3; recovery, transfer, signaling, calling and media
+security remain outside this increment.
 
 ## Stage 1 implementation and review
 

@@ -44,7 +44,8 @@ and how the app/library/server fit together.
 
 ## Boundaries and dependencies
 
-`mobile-app/lib/app` owns presentation. Future feature modules depend on narrow
+`mobile-app/lib` owns presentation: `app/` handles navigation and local state,
+`screens/` contains views and `ui/` holds shared styling/widgets. Future feature modules depend on narrow
 application/native interfaces. Kotlin platform code owns OS concerns; a future
 FFI/JNI bridge delegates media to `native-engine`. The engine has no Flutter,
 account database, or backend dependency. The bridge and packaging are deferred.

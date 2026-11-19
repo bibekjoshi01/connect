@@ -3,6 +3,9 @@
 Flutter 3.47.8 (official tag `737ba8f885dc774b53b442759999a312c9461e4e`),
 bundled Dart 3.13.7. `mobile-app/.flutter-version`, the generated metadata and CI pin the
 baseline; update them together with `pubspec.lock` and validate again.
+Local UI validation uses that exact official Git tag in ignored `.tools/flutter`.
+If Flutter is not on your PATH, pass `FLUTTER="$PWD/.tools/flutter/bin/flutter"`
+and `DART="$PWD/.tools/flutter/bin/dart"` to root Make commands.
 Flutter's stable channel is the recommended baseline for new applications:
 https://docs.flutter.dev/install/archive
 

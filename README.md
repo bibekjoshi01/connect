@@ -4,7 +4,7 @@ An Android-first app-to-app voice project with a Flutter app, Go backend and
 portable C++ engine. The mobile app and backend are built and run separately.
 
 Currently, the backend supports accounts and device authentication. The mobile
-app shows a development screen; app integration and calling are still pending.
+app has a local UI preview; account integration and calling are still pending.
 
 ## Repository structure
 
@@ -46,6 +46,9 @@ Account APIs require additional HTTPS configuration; see the
 ```bash
 make mobile-run
 ```
+
+Explore welcome, profile setup, calls, Call ID entry and appearance settings.
+Preview data resets on app restart; no account or call is created.
 
 To build a debug APK, use `make mobile-apk`. The APK is written to
 `mobile-app/build/app/outputs/flutter-apk/app-debug.apk`.

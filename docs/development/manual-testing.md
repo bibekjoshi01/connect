@@ -1,8 +1,8 @@
 # Manual acceptance checklist
 
-Prepared 2026-11-18. Run from the repository root unless stated otherwise.
+Updated 2026-11-19. Run from the repository root unless stated otherwise.
 Unchecked items have not been manually verified in this review. The existing
-runtime includes the Stage 2 backend and Stage 0 mobile shell. Backend account
+runtime includes the Stage 2 backend and a presentation-only mobile preview. Backend account
 cases are now covered by synthetic HTTPS/PostgreSQL integration tests; their
 manual checkboxes remain unexecuted. Android account cases remain future work.
 See [Stage 2 setup and results](stage-2-results.md) for the opt-in RP/TLS settings.
@@ -12,7 +12,7 @@ See [Stage 2 setup and results](stage-2-results.md) for the opt-in RP/TLS settin
 - [ ] Docker Engine and Compose v2 are running; Go 1.26.11 is available.
 - [ ] For mobile checks, Flutter 3.47.8, JDK 21 and the Android SDK/device are
   configured using [toolchains.md](toolchains.md) and [stage-1.md](stage-1.md).
-  The previous temporary Flutter SDK is currently missing.
+  A project-local Flutter SDK is available in ignored `.tools/flutter`.
 - [ ] Run the relevant baseline checks and record their exit results:
 
 ```bash
@@ -86,7 +86,7 @@ Rollback/reapply and concurrent migrations belong in `make backend-integration`'
 isolated stack. Stop development services with `make infra-down` after testing;
 omit `--volumes` to preserve development data.
 
-## Existing Android app — Stage 0 shell
+## Android UI preview — no integration
 
 With an emulator or device selected:
 
@@ -95,13 +95,26 @@ cd mobile-app
 flutter run
 ```
 
-- [ ] The app shows `Connect`, `Development foundation`, and the notice that
-  calling/account setup are unavailable. No registration or dialer is expected.
-- [ ] On a small screen with enlarged system text, scroll to the complete notice;
-  no overflow/crash occurs.
-- [ ] Background and reopen the app; the shell remains usable.
-- [ ] The same shell launches while the backend is stopped. Backend connectivity
-  is not implemented; this does not prove offline account or calling behavior.
+- [ ] Welcome explains the design preview. Get started opens local profile setup;
+  Back returns without creating a profile.
+- [ ] Empty/invalid usernames show an error. A valid name opens Recents, and Settings
+  shows its lowercase form. No account is registered or Call ID generated.
+- [ ] The green call button opens New call, which rejects invalid Call IDs. A 32-character hexadecimal ID opens the
+  disconnected call preview. Mute/speaker change visual state only; Back to calls
+  returns home without creating call history or requesting audio permissions.
+- [ ] The dial pad shows 0–9 and A–F without opening a keyboard. Taps update the
+  large ID display, stop at 32 characters, and backspace removes one character;
+  holding backspace clears it. Paste accepts a complete valid ID and rejects
+  invalid/overlong content without replacing the current entry.
+- [ ] Edit the preview profile; canceling preserves the previous name.
+- [ ] Appearance switches between system, light and dark. Canceling reset keeps
+  the profile; confirming reset returns to welcome and restores system appearance.
+- [ ] Test narrow screens, an open keyboard and enlarged system text; all actions
+  remain reachable by scrolling, without overflow or crashes.
+- [ ] Background and reopen the app; the preview remains usable. A process restart
+  clears the local profile and theme selection.
+- [ ] The preview works with the backend stopped. This does not prove offline
+  account or calling behavior; no integration is present.
 
 ## Backend acceptance — Stage 2, implemented; manual review pending
 
